@@ -25,27 +25,57 @@ le = data.get("lets_encrypt", False)
 agent.set_env("TRAEFIK_HOST", host)
 agent.set_env("TRAEFIK_HTTP2HTTPS", h2hs)
 agent.set_env("TRAEFIK_LETS_ENCRYPT", le)
+tcp_ports = os.environ["TCP_PORTS"].split(",")
+t1 = tcp_ports[0]
+t2 = tcp_ports[1]
+t3 = tcp_ports[2]
+agent.set_env("TCP_PORT_ONE", t1)
+agent.set_env("TCP_PORT_TWO", t2)
+agent.set_env("TCP_PORT_THREE", t3)
+
 
 # Make sure everything is saved inside the environment file
 # just before starting systemd unit
 agent.dump_env()
 
 # Find default traefik instance for current node
-default_traefik_id = agent.resolve_agent_id('traefik@node')
+default_traefik_id = agent.resolve_agent_id("traefik@node")
 if default_traefik_id is None:
     sys.exit(2)
 
 response = agent.tasks.run(
-    agent_id=agent.resolve_agent_id('traefik@node'),
-    action='set-route',
+    agent_id=agent.resolve_agent_id("traefik@node"),
+    action="set-route",
     data={
-        'instance': os.environ['MODULE_ID'],
-        'url':  'http://127.0.0.1:' + os.environ["TCP_PORT"],
-        'host': host,
-        'http2https': h2hs,
-        'lets_encrypt': le
+        "instance": os.environ["MODULE_ID"],
+        "url": "http://127.0.0.1:" + t1,
+        "host": host,
+        "http2https": h2hs,
+        "lets_encrypt": le,
+    },
+)
+response = agent.tasks.run(
+    agent_id=agent.resolve_agent_id("traefik@node"),
+    action="set-route",
+    data={
+        "instance": os.environ["MODULE_ID"] + "-ssh",
+        "url": "http://127.0.0.1:" + t2,
+        "host": "ssh." + host,
+        "http2https": h2hs,
+        "lets_encrypt": le,
+    },
+)
+response = agent.tasks.run(
+    agent_id=agent.resolve_agent_id("traefik@node"),
+    action="set-route",
+    data={
+        "instance": os.environ["MODULE_ID"] + "-sql",
+        "url": "http://127.0.0.1:" + t3,
+        "host": "sql." + host,
+        "http2https": h2hs,
+        "lets_encrypt": le,
     },
 )
 
 # Check if traefik configuration has been successfull
-agent.assert_exp(response['exit_code'] == 0)
+agent.assert_exp(response["exit_code"] == 0)

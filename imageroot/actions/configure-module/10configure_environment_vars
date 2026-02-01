@@ -13,9 +13,8 @@ import agent
 # If parsing fails, output everything to stderr
 data = json.load(sys.stdin)
 
-#This is specific to you module, so you need to change it accordingly.
-#agent.dump_env()
- 
-warpgate = { 
-} 
-agent.write_envfile("warpgate.env", warpgate) 
+# This is specific to you module, so you need to change it accordingly.
+# agent.dump_env()
+
+warpgate = {}
+agent.write_envfile("warpgate.env", warpgate)
