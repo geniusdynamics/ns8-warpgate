@@ -24,7 +24,11 @@ add-module ghcr.io/geniusdynamics/warpgate:latest 1
 The output will return the instance name:
 
 ```json
-{"module_id": "warpgate1", "image_name": "warpgate", "image_url": "ghcr.io/geniusdynamics/warpgate:latest"}
+{
+  "module_id": "warpgate1",
+  "image_name": "warpgate",
+  "image_url": "ghcr.io/geniusdynamics/warpgate:latest"
+}
 ```
 
 ## Configure
@@ -60,6 +64,14 @@ You can retrieve the configuration with
 
 ```
 api-cli run get-configuration --agent module/warpgate1
+```
+
+## Update
+
+Update your instance
+
+```bash
+api-cli run update-module --data '{"module_url":"ghcr.io/geniusdynamics/warpgate:latest","instances":["warpgate1"],"force":true}'
 ```
 
 ## Uninstall
@@ -109,6 +121,7 @@ echo $PATH
 ```
 
 Expected output:
+
 ```
 /home/warpgate1/.config/bin:/usr/local/agent/pyenv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/usr/
 ```
@@ -116,16 +129,19 @@ Expected output:
 ### Container Debugging
 
 First, enter the module environment:
+
 ```bash
 runagent -m warpgate1
 ```
 
 List running containers:
+
 ```bash
 podman ps
 ```
 
 Example output:
+
 ```
 CONTAINER ID  IMAGE                                      COMMAND               CREATED        STATUS        PORTS                    NAMES
 d292c6ff28e9  localhost/podman-pause:4.6.1-1702418000                          9 minutes ago  Up 9 minutes  127.0.0.1:20015->80/tcp  80b8de25945f-infra
@@ -134,11 +150,13 @@ d8df02bf6f4a  docker.io/library/mariadb:10.11.5          --character-set-s...  9
 ```
 
 View environment variables inside a container:
+
 ```bash
 podman exec warpgate-app env
 ```
 
 Run a shell inside a container:
+
 ```bash
 podman exec -ti warpgate-app sh
 ```
