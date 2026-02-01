@@ -18,6 +18,7 @@ TimeoutStopSec=70
 ExecStartPre=/bin/mkdir -p tmp
 ExecStartPre=/bin/rm -f %t/warpgate-app.pid %t/warpgate-app.ctr-id
 ExecStartPre=-runagent discover-smarthost
+ExecStartPre=/usr/bin/podman run --rm --volume data:/data:Z ${WARPGATE_IMAGE} setup
 ExecStart=/usr/bin/podman run --conmon-pidfile %t/warpgate-app.pid  --cidfile %t/warpgate-app.ctr-id --cgroups=no-conmon  --pod-id-file %t/warpgate.pod-id --replace -d --name  warpgate-app  --volume data:/data:Z   --env-file warpgate.env  ${WARPGATE_IMAGE}  
 ExecStop=/usr/bin/podman stop --ignore --cidfile %t/warpgate-app.ctr-id -t 10
 ExecReload=/usr/bin/podman kill -s HUP warpgate-app
