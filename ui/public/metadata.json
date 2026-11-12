@@ -1,19 +1,22 @@
 {
   "name": "warpgate",
   "description": {
-    "en": "My warpgate module"
+    "en": "Smart SSH, HTTPS and MySQL bastion that requires no client-side software, with a web admin interface.",
+    "it": "Bastion SSH, HTTPS e MySQL intelligente che non richiede software sul client, con interfaccia web di amministrazione."
   },
-  "categories": [],
+  "categories": [
+    "security"
+  ],
   "authors": [
     {
-      "name": "Name Surname",
-      "email": "author@yourmail.org"
+      "name": "Genius Dynamics",
+      "email": "support@genius.ke"
     }
   ],
   "docs": {
-    "documentation_url": "https://docs.warpgate.com/",
-    "bug_url": "https://github.com/NethServer/dev",
-    "code_url": "https://github.com/author/ns8-warpgate"
+    "documentation_url": "https://warpgate.null.page/",
+    "bug_url": "https://github.com/geniusdynamics/ns8-warpgate/issues",
+    "code_url": "https://github.com/geniusdynamics/ns8-warpgate"
   },
-  "source": "ghcr.io/nethserver/warpgate"
+  "source": "ghcr.io/geniusdynamics/warpgate"
 }

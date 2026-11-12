@@ -1,0 +1,55 @@
+#!/usr/bin/env python3
+
+#
+# Copyright (C) 2026 Genius Dynamics
+# SPDX-License-Identifier: GPL-3.0-or-later
+#
+
+import json
+import os
+import sys
+import agent
+import agent.tasks
+
+request = json.load(sys.stdin)
+
+host = request["host"]
+http2https = request.get("http2https", True)
+lets_encrypt = request.get("lets_encrypt", False)
+
+# Persist the settings in the module environment
+agent.set_env("TRAEFIK_HOST", host)
+agent.set_env("TRAEFIK_HTTP2HTTPS", http2https)
+agent.set_env("TRAEFIK_LETS_ENCRYPT", lets_encrypt)
+
+# TCP_PORTS is a comma-separated list of the 3 ports reserved by the
+# org.nethserver.tcp-ports-demand image label: web UI, SSH, MySQL
+tcp_ports = os.environ["TCP_PORTS"].split(",")
+agent.set_env("TCP_PORT_HTTP", tcp_ports[0])
+agent.set_env("TCP_PORT_SSH", tcp_ports[1])
+agent.set_env("TCP_PORT_MYSQL", tcp_ports[2])
+
+# Make sure everything is saved inside the environment file
+# just before starting systemd unit
+agent.dump_env()
+
+# Warpgate serves its web UI over HTTPS with a self-signed certificate:
+# Traefik terminates the public TLS and re-encrypts to the backend. The
+# route is removed automatically with the module, because the "instance"
+# attribute starts with MODULE_ID. SSH and MySQL are raw TCP protocols and
+# cannot be proxied by Traefik: they are published on their own ports.
+response = agent.tasks.run(
+    agent_id=agent.resolve_agent_id("traefik@node"),
+    action="set-route",
+    data={
+        "instance": os.environ["MODULE_ID"],
+        "url": "https://127.0.0.1:" + tcp_ports[0],
+        "skip_cert_verify": True,
+        "host": host,
+        "http2https": http2https,
+        "lets_encrypt": lets_encrypt,
+    },
+)
+
+# Check if traefik configuration has been successfull
+agent.assert_exp(response["exit_code"] == 0, "The traefik set-route task failed!")
