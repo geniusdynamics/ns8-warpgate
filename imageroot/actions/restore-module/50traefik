@@ -8,6 +8,7 @@
 import sys
 import json
 import agent
+import agent.tasks
 import os
 
 request = json.load(sys.stdin)

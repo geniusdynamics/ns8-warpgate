@@ -1,28 +1,16 @@
 #!/usr/bin/env python3
 
 #
-# Copyright (C) 2022 Nethesis S.r.l.
+# Copyright (C) 2026 Genius Dynamics
 # SPDX-License-Identifier: GPL-3.0-or-later
 #
 
-import json
-import sys
+import secrets
 import agent
-import os
 
-# Try to parse the stdin as JSON.
-# If parsing fails, output everything to stderr
-data = json.load(sys.stdin)
-
-# This is specific to you module, so you need to change it accordingly.
-
-
-def generate_random_password(length):
-    # Generate random bytes and convert them to a hexadecimal string
-    random_bytes = os.urandom(length)
-    password = random_bytes.hex()
-    return password[:length]
-
-
-# just before starting systemd unit
-# agent.dump_env()
+# Generate the password of the initial Warpgate "admin" user. It is stored
+# in state/warpgate.env, which is included in the module backup, and read
+# by Warpgate at first start only.
+agent.write_envfile("warpgate.env", {
+    "WARPGATE_ADMIN_PASSWORD": secrets.token_hex(16),
+})
