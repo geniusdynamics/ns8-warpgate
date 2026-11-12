@@ -23,7 +23,7 @@
       <cv-column>
         <cv-tile light>
           <cv-form @submit.prevent="configureModule">
-            <cv-text-input
+            <NsTextInput
               :label="$t('settings.warpgate_fqdn')"
               placeholder="warpgate.example.org"
               v-model.trim="host"
@@ -32,8 +32,8 @@
               :disabled="loading.getConfiguration || loading.configureModule"
               ref="host"
             >
-            </cv-text-input>
-            <cv-toggle
+            </NsTextInput>
+            <NsToggle
               value="letsEncrypt"
               :label="$t('settings.lets_encrypt')"
               v-model="isLetsEncryptEnabled"
@@ -46,8 +46,8 @@
               <template slot="text-right">{{
                 $t("settings.enabled")
               }}</template>
-            </cv-toggle>
-            <cv-toggle
+            </NsToggle>
+            <NsToggle
               value="httpToHttps"
               :label="$t('settings.http_to_https')"
               v-model="isHttpToHttpsEnabled"
@@ -60,15 +60,7 @@
               <template slot="text-right">{{
                 $t("settings.enabled")
               }}</template>
-            </cv-toggle>
-              <!-- advanced options -->
-            <cv-accordion ref="accordion" class="maxwidth mg-bottom">
-              <cv-accordion-item :open="toggleAccordion[0]">
-                <template slot="title">{{ $t("settings.advanced") }}</template>
-                <template slot="content">
-                </template>
-              </cv-accordion-item>
-            </cv-accordion>
+            </NsToggle>
             <cv-row v-if="error.configureModule">
               <cv-column>
                 <NsInlineNotification
