@@ -1,7 +1,8 @@
 {
   "name": "warpgate",
   "description": {
-    "en": "Smart SSH, HTTPS and MySQL bastion that requires no client-side software"
+    "en": "Smart SSH, HTTPS and MySQL bastion that requires no client-side software, with a web admin interface.",
+    "it": "Bastion SSH, HTTPS e MySQL intelligente che non richiede software sul client, con interfaccia web di amministrazione."
   },
   "categories": [
     "security"
@@ -9,7 +10,7 @@
   "authors": [
     {
       "name": "Genius Dynamics",
-      "email": "resources@genius-dynamics.com"
+      "email": "support@genius.ke"
     }
   ],
   "docs": {
