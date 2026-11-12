@@ -39,7 +39,7 @@ Check if the configuration is returned
     ${output}  ${rc} =    Execute Command    api-cli run module/${module_id}/get-configuration
     ...    return_rc=True
     Should Be Equal As Integers    ${rc}  0
-    &{config} =    Evaluate    json.loads($output)['output']    json
+    &{config} =    Evaluate    json.loads($output)    json
     Should Be Equal    ${config.host}    ${HOST}
 
 Check if warpgate works as expected
