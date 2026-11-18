@@ -99,6 +99,8 @@
                 v-model="oidc.secret"
                 type="password"
                 autocomplete="new-password"
+                :password-show-label="$t('settings.oidc_show_secret')"
+                :password-hide-label="$t('settings.oidc_hide_secret')"
                 :label="$t('settings.oidc_secret')"
                 :helper-text="
                   keepsSecret ? $t('settings.oidc_keep_secret') : ''
@@ -373,8 +375,15 @@ export default {
         required.oidc_domain = this.oidc.domain;
       }
       const missing = Object.keys(required).filter((field) => !required[field]);
+      const emptyChoiceErrors = {
+        oidc_provider: !this.oidcProviders.length && "settings.oidc_no_providers",
+        oidc_domain:
+          this.oidc.provider &&
+          !this.oidcDomains.length &&
+          "settings.oidc_no_domains",
+      };
       missing.forEach((field) => {
-        this.error[field] = this.$t("common.required");
+        this.error[field] = this.$t(emptyChoiceErrors[field] || "common.required");
       });
       if (missing.length) {
         this.focusElement(missing[0]);

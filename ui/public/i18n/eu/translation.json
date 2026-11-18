@@ -19,6 +19,8 @@
     "oidc_issuer": "Jaulkitzailearen URLa",
     "oidc_client_id": "Bezeroaren IDa",
     "oidc_secret": "Bezeroaren sekretua",
+    "oidc_show_secret": "Erakutsi bezeroaren sekretua",
+    "oidc_hide_secret": "Ezkutatu bezeroaren sekretua",
     "oidc_keep_secret": "Utzi hutsik gordetako sekretua mantentzeko.",
     "oidc_provider": "Identitate-hornitzailea",
     "oidc_no_providers": "Ez dago NS8ko OIDC hornitzailerik erabilgarri.",

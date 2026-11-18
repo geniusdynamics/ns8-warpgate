@@ -28,6 +28,8 @@
     "oidc_issuer": "URL dell’emittente",
     "oidc_client_id": "ID client",
     "oidc_secret": "Segreto del client",
+    "oidc_show_secret": "Mostra il segreto del client",
+    "oidc_hide_secret": "Nascondi il segreto del client",
     "oidc_keep_secret": "Lascia vuoto per mantenere il segreto salvato.",
     "oidc_provider": "Provider di identità",
     "oidc_no_providers": "Non sono disponibili provider OIDC di NS8.",

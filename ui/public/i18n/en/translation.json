@@ -32,6 +32,8 @@
     "oidc_issuer": "Issuer URL",
     "oidc_client_id": "Client ID",
     "oidc_secret": "Client secret",
+    "oidc_show_secret": "Show client secret",
+    "oidc_hide_secret": "Hide client secret",
     "oidc_keep_secret": "Leave blank to keep the saved secret.",
     "oidc_provider": "Identity provider",
     "oidc_no_providers": "No NS8 OIDC providers are available.",
