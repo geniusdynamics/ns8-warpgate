@@ -1,0 +1,6 @@
+#!/bin/bash
+# SPDX-License-Identifier: GPL-3.0-or-later
+set -euo pipefail
+volume=$(podman volume inspect --format '{{.Mountpoint}}' data)
+export PYTHONPATH="${AGENT_INSTALL_DIR}/pypkg/warpgate-deps"
+exec podman unshare python3 "${AGENT_INSTALL_DIR}/pypkg/warpgate_oidc.py" "$volume" "${TRAEFIK_HOST:?}"
