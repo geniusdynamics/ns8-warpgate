@@ -38,12 +38,18 @@ buildah run \
 	nodebuilder-warpgate \
 	sh -c "yarn install && yarn build"
 
+# Vendor the pure-Python YAML parser used to render the runtime configuration.
+yaml_builder=$(buildah from docker.io/library/python:3.12-slim)
+trap 'buildah rm "$yaml_builder" >/dev/null' EXIT
+buildah run "$yaml_builder" python3 -m pip install --no-deps --no-compile --target /deps PyYAML==6.0.3
+
 # Add imageroot directory to the container image
 buildah add "${container}" imageroot /imageroot
+buildah copy --from "$yaml_builder" "${container}" /deps/yaml /imageroot/pypkg/warpgate-deps/yaml
 buildah add "${container}" ui/dist /ui
 # Setup the entrypoint, reserve three TCP ports (web UI, SSH, MySQL) and set a rootless container
 buildah config --entrypoint=/ \
-	--label="org.nethserver.authorizations=traefik@node:routeadm" \
+	--label="org.nethserver.authorizations=traefik@node:routeadm cluster:accountconsumer idp@any:clientadm keycloak@any:clientadm lemonldapng@any:clientadm" \
 	--label="org.nethserver.tcp-ports-demand=3" \
 	--label="org.nethserver.rootfull=0" \
     --label="org.nethserver.min-core=3.0.0" \

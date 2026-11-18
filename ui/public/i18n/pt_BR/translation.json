@@ -30,6 +30,26 @@
         "cannot_create_task": "Cannot create task {action}"
     },
     "settings": {
+    "oidc_mode": "Login com OpenID Connect",
+    "oidc_mode_help": "O login local no Warpgate continua disponível.",
+    "oidc_manual": "Manual (provedor externo)",
+    "oidc_ns8": "Provedor NS8",
+    "oidc_issuer": "URL do emissor",
+    "oidc_client_id": "ID do cliente",
+    "oidc_secret": "Segredo do cliente",
+    "oidc_keep_secret": "Deixe em branco para manter o segredo salvo.",
+    "oidc_provider": "Provedor de identidade",
+    "oidc_no_providers": "Nenhum provedor OIDC do NS8 está disponível.",
+    "oidc_select_provider": "Selecione um provedor",
+    "oidc_domain": "Domínio de usuários",
+    "oidc_no_domains": "Nenhum domínio de usuários está disponível para este provedor.",
+    "oidc_select_domain": "Selecione um domínio",
+    "oidc_callback": "URI de redirecionamento",
+    "oidc_invalid_issuer": "Insira uma URL HTTPS válida para o emissor.",
+    "oidc_required": "Obrigatório",
+    "oidc_provider_unavailable": "O provedor selecionado não está disponível.",
+    "oidc_domain_unavailable": "O domínio selecionado não está disponível.",
+    "oidc_registration_failed": "O Warpgate não conseguiu se registrar neste provedor.",
         "title": "Settings"
     }
 }
