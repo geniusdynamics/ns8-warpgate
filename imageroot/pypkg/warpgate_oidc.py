@@ -182,6 +182,8 @@ def render(volume, host):
         if any(provider["name"] == name for provider in providers):
             raise ValueError("duplicate provider name")
         config["external_host"] = host
+        # Warpgate otherwise uses its container listener's port for the callback.
+        config.setdefault("http", {})["external_port"] = 443
         config["sso_providers"] = [*providers, {
             "name": name,
             "label": "OpenID Connect",
@@ -191,7 +193,7 @@ def render(volume, host):
                 "issuer_url": settings["issuer"],
                 "client_id": settings["client_id"],
                 "client_secret": settings["secret"],
-                "scopes": ["openid", "email", "profile"],
+                "scopes": ["email", "profile"],
                 "role_mappings": {},
                 "admin_role_mappings": {},
                 "trust_unknown_audiences": False,
