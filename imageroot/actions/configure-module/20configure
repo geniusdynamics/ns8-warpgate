@@ -10,8 +10,11 @@ import os
 import sys
 import agent
 import agent.tasks
+import warpgate_oidc
 
 request = json.load(sys.stdin)
+
+oidc = warpgate_oidc.configure(request)
 
 host = request["host"]
 http2https = request.get("http2https", True)
@@ -53,3 +56,5 @@ response = agent.tasks.run(
 
 # Check if traefik configuration has been successfull
 agent.assert_exp(response["exit_code"] == 0, "The traefik set-route task failed!")
+
+warpgate_oidc.save_configuration(oidc)

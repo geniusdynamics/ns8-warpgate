@@ -31,6 +31,62 @@
             "type": "boolean",
             "title": "HTTP to HTTPS redirection",
             "description": "Redirect all the HTTP requests to HTTPS"
+        },
+        "oidc_callback_path": {
+            "type": "string"
+        },
+        "oidc_providers": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "required": [
+                    "id",
+                    "label",
+                    "domains"
+                ],
+                "properties": {
+                    "id": {
+                        "type": "string"
+                    },
+                    "label": {
+                        "type": "string"
+                    },
+                    "domains": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "oidc": {
+            "type": "object",
+            "required": [
+                "mode"
+            ],
+            "properties": {
+                "mode": {
+                    "enum": [
+                        "disabled",
+                        "manual",
+                        "ns8"
+                    ]
+                },
+                "issuer": {
+                    "type": "string"
+                },
+                "client_id": {
+                    "type": "string"
+                },
+                "provider": {
+                    "type": "string"
+                },
+                "domain": {
+                    "type": "string"
+                }
+            },
+            "additionalProperties": false
         }
     }
 }
