@@ -177,3 +177,17 @@ To setup the translation process:
 
 - add [GitHub Weblate app](https://docs.weblate.org/en/latest/admin/code-hosting.html#code-hosting-github-notifications) to your repository
 - add your repository to [hosted.weblate.org](https://hosted.weblate.org) or ask a geniusdynamics developer to add it to ns8 Weblate project
+
+### OpenID Connect sign-in
+
+On the NS8 module **Settings** page, choose an OpenID Connect mode.
+
+- **Disabled** is the default for new and upgraded instances. Warpgate's local sign-in is available in every mode.
+- **External provider** uses the issuer URL, client ID, and client secret from a confidential OIDC client that you register. Use the callback URL shown in Settings. Leaving the secret blank keeps it when the issuer and client ID are unchanged.
+- **NS8 provider** lists registered NethServer IdP, Keycloak, and LemonLDAP::NG instances. Choose the provider and a user domain it serves. NS8 registers the client and callback automatically.
+
+OIDC requires HTTPS and a provider certificate trusted by the Warpgate container. The provider must return an email claim and control ownership of that address. Use trusted providers and, in Warpgate's administration interface, add an SSO credential with the user's email and the specific **OpenID Connect** provider to each account that should sign in. Keep a local administrator account. The module does not provision Warpgate users or map provider claims to Warpgate roles.
+
+The callback is `https://<warpgate-host>/@warpgate/api/sso/return`. Update it at the external provider if the Warpgate hostname changes. Disabling module-managed OIDC removes its sign-in option and stored credentials. You can retire an unused client at the provider.
+
+Warpgate's original `/data/warpgate.yaml` remains the source for existing settings and administrator-configured providers. While module-managed OIDC is enabled, restart Warpgate after editing that file so the module can regenerate the effective configuration.

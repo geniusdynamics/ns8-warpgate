@@ -9,10 +9,23 @@ import json
 import os
 import sys
 
+import agent
+import warpgate_oidc
+
 config = {
     "host": os.getenv("TRAEFIK_HOST", ""),
     "http2https": os.getenv("TRAEFIK_HTTP2HTTPS") == "True",
     "lets_encrypt": os.getenv("TRAEFIK_LETS_ENCRYPT") == "True",
 }
+
+oidc = warpgate_oidc.read_settings()
+config["oidc"] = {key: value for key, value in oidc.items() if key in {
+    "mode", "provider", "domain", "issuer", "client_id",
+}}
+config["oidc_providers"] = [
+    {key: provider[key] for key in ("id", "label", "domains")}
+    for provider in warpgate_oidc.discover(agent.redis_connect()).values()
+]
+config["oidc_callback_path"] = warpgate_oidc.CALLBACK
 
 json.dump(config, fp=sys.stdout)

@@ -33,6 +33,7 @@ ExecStartPre=/usr/bin/podman run \
     --mysql-port=33306 \
     --external-host=${TRAEFIK_HOST} \
     --if-config-exists=skip
+ExecStartPre=/usr/local/bin/runagent render-warpgate-config
 ExecStart=/usr/bin/podman run \
     --detach \
     --conmon-pidfile=%t/warpgate.pid \
@@ -44,7 +45,7 @@ ExecStart=/usr/bin/podman run \
     --publish=${TCP_PORT_SSH}:2222 \
     --publish=${TCP_PORT_MYSQL}:33306 \
     ${WARPGATE_IMAGE} \
-    run
+    --config /data/.ns8-warpgate.yaml run
 ExecStop=/usr/bin/podman stop --ignore --cidfile %t/warpgate.ctr-id -t 10
 ExecStopPost=/usr/bin/podman rm --ignore -f --cidfile %t/warpgate.ctr-id
 PIDFile=%t/warpgate.pid

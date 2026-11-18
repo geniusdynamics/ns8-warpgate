@@ -1,11 +1,18 @@
 *** Settings ***
 Library    SSHLibrary
+Library    Collections
 
 *** Variables ***
 ${ADMIN_USER}    admin
 ${ADMIN_PASSWORD}    Nethesis,1234
 ${module_id}    ${EMPTY}
 ${HOST}    warpgate.example.org
+${OIDC_DOMAIN}    warpgate-sso.example.org
+${KEYCLOAK_HOST}    keycloak.${OIDC_DOMAIN}
+${DIRECTORY_IMAGE}    ghcr.io/nethserver/openldap:2.8.1
+${KEYCLOAK_IMAGE}    ghcr.io/geniusdynamics/keycloak:1.1.0
+${directory_id}    ${EMPTY}
+${keycloak_id}    ${EMPTY}
 
 *** Keywords ***
 Login to cluster-admin
@@ -21,6 +28,44 @@ Warpgate answers through Traefik
     ...    curl -k -f -L --resolve ${HOST}:443:127.0.0.1 --resolve ${HOST}:80:127.0.0.1 http://${HOST}/@warpgate/
     ...    return_rc=True  return_stdout=False
     Should Be Equal As Integers    ${rc}  0
+
+Configure OIDC
+    [Arguments]    ${oidc}
+    ${rc} =    Execute Command    api-cli run module/${module_id}/configure-module --data '{"host":"${HOST}","http2https":true,"lets_encrypt":false,"oidc":${oidc}}'
+    ...    return_rc=True  return_stdout=False
+    Should Be Equal As Integers    ${rc}    0
+
+OIDC provider count should be
+    [Arguments]    ${expected}
+    Wait Until Keyword Succeeds    60s    3s    Check OIDC provider count    ${expected}
+
+Check OIDC provider count
+    [Arguments]    ${expected}
+    ${output}    ${rc} =    Execute Command
+    ...    curl -kf --resolve ${HOST}:443:127.0.0.1 https://${HOST}/@warpgate/api/sso/providers
+    ...    return_rc=True
+    Should Be Equal As Integers    ${rc}    0
+    ${count} =    Evaluate    len(json.loads($output))    json
+    Should Be Equal As Integers    ${count}    ${expected}
+
+Run node command
+    [Arguments]    ${command}
+    ${out}    ${err}    ${rc} =    Execute Command    ${command}    return_stderr=True    return_rc=True
+    Should Be Equal As Integers    ${rc}    0    ${out} ${err}
+    RETURN    ${out}
+
+Install OIDC fixture
+    [Arguments]    ${image}
+    ${out} =    Run node command    add-module ${image} 1
+    ${id} =    Evaluate    ast.literal_eval($out)['module_id']    ast
+    RETURN    ${id}
+
+Remove OIDC fixtures
+    FOR    ${id}    IN    ${keycloak_id}    ${directory_id}
+        IF    $id
+            Run node command    remove-module --no-preserve ${id}
+        END
+    END
 
 *** Test Cases ***
 Check if warpgate is installed correctly
@@ -41,6 +86,50 @@ Check if the configuration is returned
     Should Be Equal As Integers    ${rc}  0
     &{config} =    Evaluate    json.loads($output)    json
     Should Be Equal    ${config.host}    ${HOST}
+
+Check if OIDC is disabled by default
+    ${output} =    Execute Command    api-cli run module/${module_id}/get-configuration
+    &{config} =    Evaluate    json.loads($output)    json
+    Should Be Equal    ${config.oidc.mode}    disabled
+    OIDC provider count should be    0
+
+Check if external OIDC can be enabled, retained, and disabled
+    Configure OIDC    {"mode":"manual","issuer":"https://identity.example.org/realm","client_id":"warpgate-test","secret":"test-client-secret"}
+    OIDC provider count should be    1
+    Configure OIDC    {"mode":"manual","issuer":"https://identity.example.org/realm","client_id":"warpgate-test"}
+    OIDC provider count should be    1
+    ${output} =    Execute Command    api-cli run module/${module_id}/get-configuration
+    &{config} =    Evaluate    json.loads($output)    json
+    Should Be Equal    ${config.oidc.issuer}    https://identity.example.org/realm
+    Dictionary Should Not Contain Key    ${config.oidc}    secret
+    Configure OIDC    {"mode":"disabled"}
+    OIDC provider count should be    0
+
+Check if a published NS8 provider can be selected and registered
+    [Teardown]    Remove OIDC fixtures
+    ${directory} =    Install OIDC fixture    ${DIRECTORY_IMAGE}
+    Set Suite Variable    ${directory_id}    ${directory}
+    Run node command    api-cli run module/${directory_id}/configure-module --data '{"provision":"new-domain","domain":"${OIDC_DOMAIN}","admuser":"admin","admpass":"OIDC-CI-password-2026"}'
+    ${keycloak} =    Install OIDC fixture    ${KEYCLOAK_IMAGE}
+    Set Suite Variable    ${keycloak_id}    ${keycloak}
+    Run node command    api-cli run module/${keycloak_id}/configure-module --data '{"host":"${KEYCLOAK_HOST}","http2https":true,"lets_encrypt":false}'
+    Wait Until Keyword Succeeds    150s    5s    Run node command
+    ...    curl -kfSs --resolve ${KEYCLOAK_HOST}:443:127.0.0.1 https://${KEYCLOAK_HOST}/realms/master/.well-known/openid-configuration >/dev/null
+    Run node command    api-cli run module/${keycloak_id}/configure-ns8-sso --data '{"enabled":true}'
+    ${provider} =    Run node command    redis-cli --no-auth-warning hget cluster/module_uuid ${keycloak_id}
+    ${output} =    Run node command    api-cli run module/${module_id}/get-configuration
+    ${domains} =    Evaluate    {x['id']: x['domains'] for x in json.loads($output)['oidc_providers']}[$provider]    json
+    Should Contain    ${domains}    ${OIDC_DOMAIN}
+    Configure OIDC    {"mode":"ns8","provider":"${provider}","domain":"${OIDC_DOMAIN}"}
+    OIDC provider count should be    1
+    ${output} =    Run node command    api-cli run module/${module_id}/get-configuration
+    &{config} =    Evaluate    json.loads($output)    json
+    Should Be Equal    ${config.oidc.mode}    ns8
+    Should Be Equal    ${config.oidc.issuer}    https://${KEYCLOAK_HOST}/realms/${OIDC_DOMAIN}
+    Should Be Equal    ${config.oidc.client_id}    ${module_id}
+    Dictionary Should Not Contain Key    ${config.oidc}    secret
+    Configure OIDC    {"mode":"disabled"}
+    OIDC provider count should be    0
 
 Check if warpgate works as expected
     Wait Until Keyword Succeeds    60s    3s    Warpgate answers through Traefik
