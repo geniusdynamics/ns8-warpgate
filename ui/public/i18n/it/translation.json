@@ -21,6 +21,7 @@
         "mount": "Percorso di mount"
     },
     "settings": {
+    "advanced": "Avanzate",
     "oidc_mode": "Accesso con OpenID Connect",
     "oidc_mode_help": "L’accesso locale a Warpgate rimane disponibile.",
     "oidc_manual": "Manuale (provider esterno)",

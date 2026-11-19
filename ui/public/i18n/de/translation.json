@@ -12,6 +12,7 @@
         "validation_error": "Fehlerhafte Prüfung"
     },
     "settings": {
+    "advanced": "Erweitert",
     "oidc_mode": "Anmeldung mit OpenID Connect",
     "oidc_mode_help": "Die lokale Warpgate-Anmeldung bleibt verfügbar.",
     "oidc_manual": "Manuell (externer Anbieter)",

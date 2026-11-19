@@ -30,6 +30,7 @@
         "cannot_create_task": "Cannot create task {action}"
     },
     "settings": {
+    "advanced": "Avançado",
     "oidc_mode": "Login com OpenID Connect",
     "oidc_mode_help": "O login local no Warpgate continua disponível.",
     "oidc_manual": "Manual (provedor externo)",

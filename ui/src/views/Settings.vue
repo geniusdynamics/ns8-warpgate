@@ -87,6 +87,7 @@
                   v-model="entry.provider"
                   :label="$t('settings.oidc_provider')"
                   :invalid-message="entry.errors.provider"
+                  :aria-invalid="Boolean(entry.errors.provider)"
                   :disabled="busy"
                   @change="entry.domain = ''"
                   class="mg-bottom"
@@ -119,6 +120,7 @@
                       : ''
                   "
                   :invalid-message="entry.errors.domain"
+                  :aria-invalid="Boolean(entry.errors.domain)"
                   :disabled="busy"
                   class="mg-bottom"
                 >
@@ -156,6 +158,7 @@
                 kind="secondary"
                 size="small"
                 :disabled="busy || !oidcProviders.length"
+                ref="add-ns8"
                 @click="addOidcEntry('ns8')"
                 >{{ $t("settings.oidc_add_ns8") }}</NsButton
               >
@@ -185,6 +188,7 @@
                       v-model.trim="entry.issuer"
                       :label="$t('settings.oidc_issuer')"
                       :invalid-message="entry.errors.issuer"
+                      :aria-invalid="Boolean(entry.errors.issuer)"
                       :disabled="busy"
                       class="mg-bottom"
                     />
@@ -192,6 +196,7 @@
                       v-model.trim="entry.client_id"
                       :label="$t('settings.oidc_client_id')"
                       :invalid-message="entry.errors.client_id"
+                      :aria-invalid="Boolean(entry.errors.client_id)"
                       :disabled="busy"
                       class="mg-bottom"
                     />
@@ -208,6 +213,7 @@
                           : ''
                       "
                       :invalid-message="entry.errors.secret"
+                      :aria-invalid="Boolean(entry.errors.secret)"
                       :disabled="busy"
                       class="mg-bottom"
                     />
@@ -225,6 +231,7 @@
                     kind="secondary"
                     size="small"
                     :disabled="busy"
+                    ref="add-manual"
                     @click="addOidcEntry('manual')"
                     >{{ $t("settings.oidc_add_manual") }}</NsButton
                   >
@@ -251,6 +258,7 @@
             <NsButton
               kind="primary"
               :icon="Save20"
+              ref="saveSettings"
               :loading="loading.configureModule"
               :disabled="loading.getConfiguration || loading.configureModule"
               >{{ $t("settings.save") }}</NsButton
@@ -448,13 +456,20 @@ export default {
       this.oidcEntries = this.oidcEntries.filter(
         ({ rowId }) => rowId !== entry.rowId
       );
+      this.$nextTick(() => {
+        const addButton = this.$refs["add-" + entry.mode].$el;
+        const target = addButton.disabled
+          ? this.$refs.saveSettings.$el
+          : addButton;
+        target.focus();
+      });
     },
     validateConfigureModule() {
       this.clearErrors(this);
 
       if (!this.host) this.error.host = this.$t("common.required");
       let firstInvalidEntry;
-      for (const entry of this.oidcEntries) {
+      for (const entry of [...this.ns8Entries, ...this.manualEntries]) {
         const required =
           entry.mode === "ns8"
             ? { provider: entry.provider, domain: entry.domain }

@@ -12,6 +12,7 @@
         "validation_error": "Fallo en la validación"
     },
     "settings": {
+    "advanced": "Avanzado",
     "oidc_mode": "Inicio de sesión con OpenID Connect",
     "oidc_mode_help": "El inicio de sesión local en Warpgate sigue disponible.",
     "oidc_manual": "Manual (proveedor externo)",

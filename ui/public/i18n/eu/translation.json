@@ -12,6 +12,7 @@
         "validation_error": "Balioztatze-errorea"
     },
     "settings": {
+    "advanced": "Aurreratua",
     "oidc_mode": "OpenID Connect bidez saioa hasi",
     "oidc_mode_help": "Warpgate-ren saio-hasiera lokalak erabilgarri jarraitzen du.",
     "oidc_manual": "Eskuzkoa (kanpoko hornitzailea)",
