@@ -12,10 +12,16 @@
         "validation_error": "Balioztatze-errorea"
     },
     "settings": {
+    "advanced": "Aurreratua",
     "oidc_mode": "OpenID Connect bidez saioa hasi",
     "oidc_mode_help": "Warpgate-ren saio-hasiera lokalak erabilgarri jarraitzen du.",
     "oidc_manual": "Eskuzkoa (kanpoko hornitzailea)",
     "oidc_ns8": "NS8 hornitzailea",
+    "oidc_add_ns8": "Gehitu NS8 hornitzailea",
+    "oidc_add_manual": "Gehitu eskuzko hornitzailea",
+    "oidc_remove": "Kendu hornitzailea",
+    "oidc_label": "Saioa hasteko etiketa (aukerakoa)",
+    "oidc_duplicate_provider": "Hornitzaile eta domeinu bikote bakoitza edo jaulkitzaile bakoitza behin bakarrik konfigura daiteke.",
     "oidc_issuer": "Jaulkitzailearen URLa",
     "oidc_client_id": "Bezeroaren IDa",
     "oidc_secret": "Bezeroaren sekretua",

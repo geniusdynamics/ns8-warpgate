@@ -180,14 +180,89 @@ To setup the translation process:
 
 ### OpenID Connect sign-in
 
-On the NS8 module **Settings** page, choose an OpenID Connect mode.
+On the NS8 module **Settings** page, use **Add NS8 provider** to choose a
+published NethServer IdP, Keycloak, or LemonLDAP::NG provider and a user domain.
+NS8 registers the client and callback automatically. You can add providers
+from different domains or keep the list empty.
 
-- **Disabled** is the default for new and upgraded instances. Warpgate's local sign-in is available in every mode.
-- **External provider** uses the issuer URL, client ID, and client secret from a confidential OIDC client that you register. Use the callback URL shown in Settings. Leaving the secret blank keeps it when the issuer and client ID are unchanged.
-- **NS8 provider** lists registered NethServer IdP, Keycloak, and LemonLDAP::NG instances. Choose the provider and a user domain it serves. NS8 registers the client and callback automatically.
+Under **Advanced**, use **Add external provider** for each confidential OIDC
+client you configure outside NS8. Enter its HTTPS issuer URL, client ID and
+client secret, and register the callback shown in Settings. Leaving the
+secret blank keeps it for an existing matching issuer and client ID. Each
+issuer can appear once in Settings. NS8 and external providers can coexist.
 
-OIDC requires HTTPS and a provider certificate trusted by the Warpgate container. The provider must return an email claim and control ownership of that address. Use trusted providers and, in Warpgate's administration interface, add an SSO credential with the user's email and the specific **OpenID Connect** provider to each account that should sign in. Keep a local administrator account. The module does not provision Warpgate users or map provider claims to Warpgate roles.
+Warpgate refreshes its NS8 registrations when a selected provider's service
+record changes and retries periodically. It keeps its cached configuration
+if a provider cannot be reached. A hostname change for the same provider
+and domain retains the provider name used by linked accounts. Warpgate
+restarts only when the effective settings change.
 
-The callback is `https://<warpgate-host>/@warpgate/api/sso/return`. Update it at the external provider if the Warpgate hostname changes. Disabling module-managed OIDC removes its sign-in option and stored credentials. You can retire an unused client at the provider.
+To rotate the secrets for the configured NS8 clients, run this on the
+module's node:
 
-Warpgate's original `/data/warpgate.yaml` remains the source for existing settings and administrator-configured providers. While module-managed OIDC is enabled, restart Warpgate after editing that file so the module can regenerate the effective configuration.
+```bash
+runagent -m warpgate1 refresh-warpgate-oidc --rotate-secret
+```
+
+Omit the flag to retrieve their current registration and secrets. The
+command does not print credentials. Warpgate keeps client secrets in private
+module state included in NS8 backups.
+
+OIDC requires HTTPS and a provider certificate trusted by the Warpgate
+container. Link each existing Warpgate account to its specific OIDC provider
+and email address in the Warpgate administration interface. The module leaves
+automatic user creation and role mapping disabled. Keep a local administrator
+account for access during provider outages.
+
+The callback is `https://<warpgate-host>/@warpgate/api/sso/return`. Update it
+at external providers if the Warpgate hostname changes. Remove a record in
+Settings to remove its sign-in option and cached credentials. Retire unused
+external clients at their provider.
+
+The module reads `/data/warpgate.yaml` as the source for native settings and
+any providers configured directly there. Restart Warpgate after editing the
+file to regenerate its effective configuration.
+
+### Encrypting credentials in the Warpgate database
+
+On the module's node, enable a key for an existing or new installation:
+
+```bash
+runagent -m warpgate1 warpgate-encryption-key enable
+runagent -m warpgate1 warpgate-encryption-key status
+```
+
+The module generates a random 32-byte key, stores it in the private
+`state/encryption.env` file, and restarts a running instance. Warpgate uses
+the key to encrypt supported database fields, including stored target
+credentials, SSH client and host keys, and authentication credentials for its
+secret backends. Warpgate handles encryption of existing records at
+startup. The keys cover those database fields. The OIDC client settings
+and bootstrap password are stored in separate private files.
+
+Rotate the key from the node while you have a current backup:
+
+```bash
+runagent -m warpgate1 warpgate-encryption-key rotate
+runagent -m warpgate1 journalctl --user -u warpgate.service
+```
+
+Rotation sets a new `WARPGATE_ENCRYPTION_KEY` and retains earlier keys in
+`WARPGATE_ENCRYPTION_KEY_OLD` so Warpgate can read and re-encrypt existing
+credentials. The status command shows the configured primary fingerprint
+and how many previous keys were retained. Check the Warpgate logs and test
+your stored target credentials after rotation. Keep the previous keys
+available during migration.
+
+Module backups include the keyring. Protect the backup repository and
+keep a secure copy of the keyring with any exported database. Restoring an
+encrypted database requires its corresponding keyring and a module
+release that loads it. Keep the database and keyring together when
+restoring or moving an instance.
+
+If a database already uses a key, run `enable --import-key` and enter that
+key at the hidden prompts. For instances sharing an external database,
+coordinate changes across all nodes and use the same primary key.
+`rotate --import-key` applies a previously agreed replacement key on
+each node. Warpgate delays re-encryption while running nodes still report
+a different primary key.

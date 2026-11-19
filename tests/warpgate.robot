@@ -35,6 +35,10 @@ Configure OIDC
     ...    return_rc=True  return_stdout=False
     Should Be Equal As Integers    ${rc}    0
 
+Configure OIDC entries
+    [Arguments]    ${entries}
+    Run node command    api-cli run module/${module_id}/configure-module --data '{"host":"${HOST}","http2https":true,"lets_encrypt":false,"oidc_entries":${entries}}'
+
 OIDC provider count should be
     [Arguments]    ${expected}
     Wait Until Keyword Succeeds    60s    3s    Check OIDC provider count    ${expected}
@@ -66,6 +70,11 @@ Remove OIDC fixtures
             Run node command    remove-module --no-preserve ${id}
         END
     END
+
+Database credentials should use key
+    [Arguments]    ${fingerprint}
+    Run node command
+    ...    runagent -m ${module_id} sh -c 'volume=$(podman volume inspect --format "{{.Mountpoint}}" data) && exec podman unshare python3 -c "$1" "$volume/db/db.sqlite3" "$2"' sh 'import sqlite3,sys; db=sqlite3.connect(sys.argv[1]); fp,retiring,key=db.execute("select encryption_key_fp, retiring_key_fp, ssh_host_key_ed25519 from parameters").fetchone(); assert fp==sys.argv[2] and retiring is None and "wgenc:v1:"+fp+":" in key' ${fingerprint}
 
 *** Test Cases ***
 Check if warpgate is installed correctly
@@ -128,7 +137,27 @@ Check if a published NS8 provider can be selected and registered
     Should Be Equal    ${config.oidc.issuer}    https://${KEYCLOAK_HOST}/realms/${OIDC_DOMAIN}
     Should Be Equal    ${config.oidc.client_id}    ${module_id}
     Dictionary Should Not Contain Key    ${config.oidc}    secret
-    Configure OIDC    {"mode":"disabled"}
+    ${before} =    Run node command    runagent -m ${module_id} sha256sum oidc.json
+    Run node command    runagent -m ${module_id} refresh-warpgate-oidc
+    ${same} =    Run node command    runagent -m ${module_id} sha256sum oidc.json
+    Should Be Equal    ${same}    ${before}
+    Run node command    runagent -m ${module_id} refresh-warpgate-oidc --rotate-secret
+    ${after} =    Run node command    runagent -m ${module_id} sha256sum oidc.json
+    Should Not Be Equal    ${after}    ${before}
+    OIDC provider count should be    1
+    Configure OIDC entries
+    ...    [{"mode":"ns8","provider":"${provider}","domain":"${OIDC_DOMAIN}"},{"mode":"manual","label":"Provider A","issuer":"https://a.example.org/realm","client_id":"client-a","secret":"secret-a"},{"mode":"manual","label":"Provider B","issuer":"https://b.example.org/realm","client_id":"client-b","secret":"secret-b"}]
+    OIDC provider count should be    3
+    ${output} =    Run node command    api-cli run module/${module_id}/get-configuration
+    &{config} =    Evaluate    json.loads($output)    json
+    Length Should Be    ${config.oidc_entries}    3
+    FOR    ${entry}    IN    @{config.oidc_entries}
+        Dictionary Should Not Contain Key    ${entry}    secret
+    END
+    Configure OIDC entries
+    ...    [{"mode":"ns8","provider":"${provider}","domain":"${OIDC_DOMAIN}"},{"mode":"manual","label":"Provider B","issuer":"https://b.example.org/realm","client_id":"client-b"}]
+    OIDC provider count should be    2
+    Configure OIDC entries    []
     OIDC provider count should be    0
 
 Check if warpgate works as expected
@@ -138,6 +167,21 @@ Check if the SSH and MySQL listeners are published
     ${rc} =    Execute Command    runagent -m ${module_id} sh -c 'ss -ltn | grep -q ":$TCP_PORT_SSH " && ss -ltn | grep -q ":$TCP_PORT_MYSQL "'
     ...    return_rc=True  return_stdout=False
     Should Be Equal As Integers    ${rc}  0
+
+Check if Warpgate encrypts and rotates existing database credentials
+    ${before} =    Run node command    runagent -m ${module_id} warpgate-encryption-key status
+    Should Be Equal    ${before}    Encryption key is not configured
+    ${enabled} =    Run node command    runagent -m ${module_id} warpgate-encryption-key enable
+    ${first} =    Evaluate    $enabled.split()[-1]
+    Wait Until Keyword Succeeds    60s    3s    Database credentials should use key    ${first}
+    ${rotated} =    Run node command    runagent -m ${module_id} warpgate-encryption-key rotate
+    ${second} =    Evaluate    $rotated.split()[-1]
+    Should Not Be Equal    ${first}    ${second}
+    Wait Until Keyword Succeeds    60s    3s    Database credentials should use key    ${second}
+    ${status} =    Run node command    runagent -m ${module_id} warpgate-encryption-key status
+    Should Contain    ${status}    Retained previous keys: 1
+    ${mode} =    Run node command    runagent -m ${module_id} stat -c %a encryption.env
+    Should Be Equal    ${mode}    600
 
 Take screenshots
     [Tags]    ui

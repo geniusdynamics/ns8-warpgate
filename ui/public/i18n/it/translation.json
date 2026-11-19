@@ -21,10 +21,16 @@
         "mount": "Percorso di mount"
     },
     "settings": {
+    "advanced": "Avanzate",
     "oidc_mode": "Accesso con OpenID Connect",
     "oidc_mode_help": "L’accesso locale a Warpgate rimane disponibile.",
     "oidc_manual": "Manuale (provider esterno)",
     "oidc_ns8": "Provider NS8",
+    "oidc_add_ns8": "Aggiungi provider NS8",
+    "oidc_add_manual": "Aggiungi provider manuale",
+    "oidc_remove": "Rimuovi provider",
+    "oidc_label": "Etichetta di accesso (facoltativa)",
+    "oidc_duplicate_provider": "Ogni coppia di provider e dominio o ogni URL emittente può essere configurata una sola volta.",
     "oidc_issuer": "URL dell’emittente",
     "oidc_client_id": "ID client",
     "oidc_secret": "Segreto del client",
