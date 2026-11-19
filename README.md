@@ -180,32 +180,45 @@ To setup the translation process:
 
 ### OpenID Connect sign-in
 
-On the NS8 module **Settings** page, choose an OpenID Connect mode.
+On the NS8 module **Settings** page, use **Add NS8 provider** to choose a
+published NethServer IdP, Keycloak, or LemonLDAP::NG provider and a user domain.
+NS8 registers the client and callback automatically. You can add providers
+from different domains or keep the list empty.
 
-- **Disabled** is the default for new and upgraded instances. Warpgate's local sign-in is available in every mode.
-- **External provider** uses the issuer URL, client ID, and client secret from a confidential OIDC client that you register. Use the callback URL shown in Settings. Leaving the secret blank keeps it when the issuer and client ID are unchanged.
-- **NS8 provider** lists registered NethServer IdP, Keycloak, and LemonLDAP::NG instances. Choose the provider and a user domain it serves. NS8 registers the client and callback automatically.
+Under **Advanced**, use **Add external provider** for each confidential OIDC
+client you configure outside NS8. Enter its HTTPS issuer URL, client ID and
+client secret, and register the callback shown in Settings. Leaving the
+secret blank keeps it for an existing matching issuer and client ID. Each
+issuer can appear once in Settings. NS8 and external providers can coexist.
 
-Warpgate refreshes the selected NS8 registration when that provider's service
-record changes and retries periodically. Failed refreshes leave the cached
-configuration in place. When the same provider and domain move to a new
-hostname, Warpgate keeps the existing provider name used by linked accounts.
-The service restarts only when the effective configuration changes.
+Warpgate refreshes its NS8 registrations when a selected provider's service
+record changes and retries periodically. It keeps its cached configuration
+if a provider cannot be reached. A hostname change for the same provider
+and domain retains the provider name used by linked accounts. Warpgate
+restarts only when the effective settings change.
 
-To rotate the client secret on demand, run this on the module's node:
+To rotate the secrets for the configured NS8 clients, run this on the
+module's node:
 
 ```bash
 runagent -m warpgate1 refresh-warpgate-oidc --rotate-secret
 ```
 
-Without the flag, the command retrieves the current registration. Warpgate
-stores the secret in private module state, which is included in NS8 backups.
-The module settings manage one NS8 or external provider. You can configure
-additional providers in the native `warpgate.yaml` and link them to users
-in Warpgate.
+Omit the flag to retrieve their current registration and secrets. The
+command does not print credentials. Warpgate keeps client secrets in private
+module state included in NS8 backups.
 
-OIDC requires HTTPS and a provider certificate trusted by the Warpgate container. The provider must return an email claim and control ownership of that address. Use trusted providers and, in Warpgate's administration interface, add an SSO credential with the user's email and the specific **OpenID Connect** provider to each account that should sign in. Keep a local administrator account. The module does not provision Warpgate users or map provider claims to Warpgate roles.
+OIDC requires HTTPS and a provider certificate trusted by the Warpgate
+container. Link each existing Warpgate account to its specific OIDC provider
+and email address in the Warpgate administration interface. The module leaves
+automatic user creation and role mapping disabled. Keep a local administrator
+account for access during provider outages.
 
-The callback is `https://<warpgate-host>/@warpgate/api/sso/return`. Update it at the external provider if the Warpgate hostname changes. Disabling module-managed OIDC removes its sign-in option and stored credentials. You can retire an unused client at the provider.
+The callback is `https://<warpgate-host>/@warpgate/api/sso/return`. Update it
+at external providers if the Warpgate hostname changes. Remove a record in
+Settings to remove its sign-in option and cached credentials. Retire unused
+external clients at their provider.
 
-Warpgate's original `/data/warpgate.yaml` remains the source for existing settings and administrator-configured providers. While module-managed OIDC is enabled, restart Warpgate after editing that file so the module can regenerate the effective configuration.
+The module reads `/data/warpgate.yaml` as the source for native settings and
+any providers configured directly there. Restart Warpgate after editing the
+file to regenerate its effective configuration.

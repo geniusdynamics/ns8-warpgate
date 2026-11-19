@@ -61,120 +61,178 @@
                 $t("settings.enabled")
               }}</template>
             </NsToggle>
-            <cv-select
-              v-model="oidc.mode"
-              :label="$t('settings.oidc_mode')"
-              :helper-text="$t('settings.oidc_mode_help')"
-              :disabled="busy"
+            <div class="mg-bottom">
+              <h3>{{ $t("settings.oidc_mode") }}</h3>
+              <p class="mg-bottom">{{ $t("settings.oidc_mode_help") }}</p>
+              <NsInlineNotification
+                v-if="error.oidc_entries"
+                ref="oidc_entries"
+                tabindex="-1"
+                kind="error"
+                :description="error.oidc_entries"
+                :showCloseButton="false"
+                class="mg-bottom"
+              />
+              <h4>{{ $t("settings.oidc_ns8") }}</h4>
+              <p v-if="!oidcProviders.length" class="mg-bottom">
+                {{ $t("settings.oidc_no_providers") }}
+              </p>
+              <div
+                v-for="entry in ns8Entries"
+                :key="entry.rowId"
+                :ref="'entry-' + entry.rowId"
+                class="mg-bottom"
+              >
+                <cv-select
+                  v-model="entry.provider"
+                  :label="$t('settings.oidc_provider')"
+                  :invalid-message="entry.errors.provider"
+                  :disabled="busy"
+                  @change="entry.domain = ''"
+                  class="mg-bottom"
+                >
+                  <cv-select-option value="" disabled>{{
+                    $t("settings.oidc_select_provider")
+                  }}</cv-select-option>
+                  <cv-select-option
+                    v-if="entry.provider && !selectedProvider(entry)"
+                    :value="entry.provider"
+                    disabled
+                    >{{
+                      $t("settings.oidc_provider_unavailable")
+                    }}</cv-select-option
+                  >
+                  <cv-select-option
+                    v-for="provider in oidcProviders"
+                    :key="provider.id"
+                    :value="provider.id"
+                    >{{ provider.label }}</cv-select-option
+                  >
+                </cv-select>
+                <cv-select
+                  v-if="entry.provider"
+                  v-model="entry.domain"
+                  :label="$t('settings.oidc_domain')"
+                  :helper-text="
+                    !oidcDomains(entry).length
+                      ? $t('settings.oidc_no_domains')
+                      : ''
+                  "
+                  :invalid-message="entry.errors.domain"
+                  :disabled="busy"
+                  class="mg-bottom"
+                >
+                  <cv-select-option value="" disabled>{{
+                    $t("settings.oidc_select_domain")
+                  }}</cv-select-option>
+                  <cv-select-option
+                    v-if="
+                      entry.domain && !oidcDomains(entry).includes(entry.domain)
+                    "
+                    :value="entry.domain"
+                    disabled
+                    >{{
+                      $t("settings.oidc_domain_unavailable")
+                    }}</cv-select-option
+                  >
+                  <cv-select-option
+                    v-for="domain in oidcDomains(entry)"
+                    :key="domain"
+                    :value="domain"
+                    >{{ domain }}</cv-select-option
+                  >
+                </cv-select>
+                <NsButton
+                  type="button"
+                  kind="danger--ghost"
+                  size="small"
+                  :disabled="busy"
+                  @click="removeOidcEntry(entry)"
+                  >{{ $t("settings.oidc_remove") }}</NsButton
+                >
+              </div>
+              <NsButton
+                type="button"
+                kind="secondary"
+                size="small"
+                :disabled="busy || !oidcProviders.length"
+                @click="addOidcEntry('ns8')"
+                >{{ $t("settings.oidc_add_ns8") }}</NsButton
+              >
+            </div>
+            <cv-accordion
               class="mg-bottom"
+              @cv:change="manualExpanded = $event.dataOpen"
             >
-              <cv-select-option value="disabled">{{
-                $t("settings.disabled")
-              }}</cv-select-option>
-              <cv-select-option value="manual">{{
-                $t("settings.oidc_manual")
-              }}</cv-select-option>
-              <cv-select-option value="ns8">{{
-                $t("settings.oidc_ns8")
-              }}</cv-select-option>
-            </cv-select>
-            <template v-if="oidc.mode === 'manual'">
-              <NsTextInput
-                v-model.trim="oidc.issuer"
-                :label="$t('settings.oidc_issuer')"
-                :invalid-message="error.oidc_issuer"
-                :disabled="busy"
-                ref="oidc_issuer"
-                class="mg-bottom"
-              />
-              <NsTextInput
-                v-model.trim="oidc.client_id"
-                :label="$t('settings.oidc_client_id')"
-                :invalid-message="error.oidc_client_id"
-                :disabled="busy"
-                ref="oidc_client_id"
-                class="mg-bottom"
-              />
-              <NsTextInput
-                v-model="oidc.secret"
-                type="password"
-                autocomplete="new-password"
-                :password-show-label="$t('settings.oidc_show_secret')"
-                :password-hide-label="$t('settings.oidc_hide_secret')"
-                :label="$t('settings.oidc_secret')"
-                :helper-text="
-                  keepsSecret ? $t('settings.oidc_keep_secret') : ''
-                "
-                :invalid-message="error.oidc_secret"
-                :disabled="busy"
-                ref="oidc_secret"
-                class="mg-bottom"
-              />
-            </template>
-            <template v-if="oidc.mode === 'ns8'">
-              <cv-select
-                v-model="oidc.provider"
-                :label="$t('settings.oidc_provider')"
-                :helper-text="
-                  !oidcProviders.length ? $t('settings.oidc_no_providers') : ''
-                "
-                :invalid-message="error.oidc_provider"
-                :disabled="busy"
-                @change="oidc.domain = ''"
-                ref="oidc_provider"
-                class="mg-bottom"
-              >
-                <cv-select-option value="" disabled>{{
-                  $t("settings.oidc_select_provider")
-                }}</cv-select-option>
-                <cv-select-option
-                  v-if="oidc.provider && !selectedProvider"
-                  :value="oidc.provider"
-                  disabled
-                  >{{
-                    $t("settings.oidc_provider_unavailable")
-                  }}</cv-select-option
-                >
-                <cv-select-option
-                  v-for="provider in oidcProviders"
-                  :key="provider.id"
-                  :value="provider.id"
-                  >{{ provider.label }}</cv-select-option
-                >
-              </cv-select>
-              <cv-select
-                v-if="oidc.provider"
-                v-model="oidc.domain"
-                :label="$t('settings.oidc_domain')"
-                :helper-text="
-                  !oidcDomains.length ? $t('settings.oidc_no_domains') : ''
-                "
-                :invalid-message="error.oidc_domain"
-                :disabled="busy"
-                ref="oidc_domain"
-                class="mg-bottom"
-              >
-                <cv-select-option value="" disabled>{{
-                  $t("settings.oidc_select_domain")
-                }}</cv-select-option>
-                <cv-select-option
-                  v-if="oidc.domain && !oidcDomains.includes(oidc.domain)"
-                  :value="oidc.domain"
-                  disabled
-                  >{{
-                    $t("settings.oidc_domain_unavailable")
-                  }}</cv-select-option
-                >
-                <cv-select-option
-                  v-for="domain in oidcDomains"
-                  :key="domain"
-                  :value="domain"
-                  >{{ domain }}</cv-select-option
-                >
-              </cv-select>
-            </template>
+              <cv-accordion-item :open="manualExpanded">
+                <template slot="title">{{ $t("settings.advanced") }}</template>
+                <template slot="content">
+                  <h4>{{ $t("settings.oidc_manual") }}</h4>
+                  <div
+                    v-for="entry in manualEntries"
+                    :key="entry.rowId"
+                    :ref="'entry-' + entry.rowId"
+                    class="mg-bottom"
+                  >
+                    <NsTextInput
+                      v-model.trim="entry.label"
+                      maxlength="120"
+                      :label="$t('settings.oidc_label')"
+                      :disabled="busy"
+                      class="mg-bottom"
+                    />
+                    <NsTextInput
+                      v-model.trim="entry.issuer"
+                      :label="$t('settings.oidc_issuer')"
+                      :invalid-message="entry.errors.issuer"
+                      :disabled="busy"
+                      class="mg-bottom"
+                    />
+                    <NsTextInput
+                      v-model.trim="entry.client_id"
+                      :label="$t('settings.oidc_client_id')"
+                      :invalid-message="entry.errors.client_id"
+                      :disabled="busy"
+                      class="mg-bottom"
+                    />
+                    <NsTextInput
+                      v-model="entry.secret"
+                      type="password"
+                      autocomplete="new-password"
+                      :password-show-label="$t('settings.oidc_show_secret')"
+                      :password-hide-label="$t('settings.oidc_hide_secret')"
+                      :label="$t('settings.oidc_secret')"
+                      :helper-text="
+                        keepsSecret(entry)
+                          ? $t('settings.oidc_keep_secret')
+                          : ''
+                      "
+                      :invalid-message="entry.errors.secret"
+                      :disabled="busy"
+                      class="mg-bottom"
+                    />
+                    <NsButton
+                      type="button"
+                      kind="danger--ghost"
+                      size="small"
+                      :disabled="busy"
+                      @click="removeOidcEntry(entry)"
+                      >{{ $t("settings.oidc_remove") }}</NsButton
+                    >
+                  </div>
+                  <NsButton
+                    type="button"
+                    kind="secondary"
+                    size="small"
+                    :disabled="busy"
+                    @click="addOidcEntry('manual')"
+                    >{{ $t("settings.oidc_add_manual") }}</NsButton
+                  >
+                </template>
+              </cv-accordion-item>
+            </cv-accordion>
             <NsTextInput
-              v-if="oidc.mode !== 'disabled' && host && oidcCallbackPath"
+              v-if="oidcEntries.length && host && oidcCallbackPath"
               :label="$t('settings.oidc_callback')"
               :value="`https://${host}${oidcCallbackPath}`"
               readonly
@@ -236,15 +294,10 @@ export default {
       host: "",
       isLetsEncryptEnabled: false,
       isHttpToHttpsEnabled: true,
-      oidc: {
-        mode: "disabled",
-        issuer: "",
-        client_id: "",
-        secret: "",
-        provider: "",
-        domain: "",
-      },
-      savedOidc: { mode: "disabled" },
+      oidcEntries: [],
+      savedOidcEntries: [],
+      manualExpanded: false,
+      nextOidcRowId: 0,
       oidcProviders: [],
       oidcCallbackPath: "",
       loading: {
@@ -257,11 +310,7 @@ export default {
         host: "",
         lets_encrypt: "",
         http2https: "",
-        oidc_issuer: "",
-        oidc_client_id: "",
-        oidc_secret: "",
-        oidc_provider: "",
-        oidc_domain: "",
+        oidc_entries: "",
       },
     };
   },
@@ -270,18 +319,11 @@ export default {
     busy() {
       return this.loading.getConfiguration || this.loading.configureModule;
     },
-    selectedProvider() {
-      return this.oidcProviders.find(({ id }) => id === this.oidc.provider);
+    ns8Entries() {
+      return this.oidcEntries.filter(({ mode }) => mode === "ns8");
     },
-    oidcDomains() {
-      return this.selectedProvider ? this.selectedProvider.domains : [];
-    },
-    keepsSecret() {
-      return (
-        this.savedOidc.mode === "manual" &&
-        this.oidc.issuer === this.savedOidc.issuer &&
-        this.oidc.client_id === this.savedOidc.client_id
-      );
+    manualEntries() {
+      return this.oidcEntries.filter(({ mode }) => mode === "manual");
     },
   },
   created() {
@@ -345,71 +387,131 @@ export default {
       this.host = config.host;
       this.isLetsEncryptEnabled = config.lets_encrypt;
       this.isHttpToHttpsEnabled = config.http2https;
-      this.savedOidc = config.oidc || { mode: "disabled" };
-      this.oidc = {
-        mode: this.savedOidc.mode,
-        issuer: this.savedOidc.mode === "manual" ? this.savedOidc.issuer : "",
-        client_id:
-          this.savedOidc.mode === "manual" ? this.savedOidc.client_id : "",
-        secret: "",
-        provider: this.savedOidc.provider || "",
-        domain: this.savedOidc.domain || "",
-      };
+      const legacy = config.oidc;
+      this.savedOidcEntries =
+        config.oidc_entries ||
+        (legacy && legacy.mode !== "disabled" ? [legacy] : []);
+      this.oidcEntries = this.savedOidcEntries.map((entry) =>
+        this.createOidcEntry(entry.mode, entry)
+      );
       this.oidcProviders = config.oidc_providers || [];
       this.oidcCallbackPath = config.oidc_callback_path || "";
 
       this.loading.getConfiguration = false;
       this.focusElement("host");
     },
+    selectedProvider(entry) {
+      return this.oidcProviders.find(({ id }) => id === entry.provider);
+    },
+    oidcDomains(entry) {
+      const provider = this.selectedProvider(entry);
+      return provider ? provider.domains : [];
+    },
+    keepsSecret(entry) {
+      return this.savedOidcEntries.some(
+        ({ mode, issuer, client_id }) =>
+          mode === "manual" &&
+          issuer === entry.issuer &&
+          client_id === entry.client_id
+      );
+    },
+    createOidcEntry(mode, entry = {}) {
+      return {
+        rowId: this.nextOidcRowId++,
+        mode,
+        issuer: entry.issuer || "",
+        client_id: entry.client_id || "",
+        label: entry.label || "",
+        secret: "",
+        provider: entry.provider || "",
+        domain: entry.domain || "",
+        errors: {},
+      };
+    },
+    focusOidcEntry(entry, invalidOnly = false) {
+      this.$nextTick(() => {
+        const rows = this.$refs["entry-" + entry.rowId];
+        if (!rows || !rows.length) return;
+        const selector = invalidOnly
+          ? '[aria-invalid="true"], [data-invalid] input, [data-invalid] select'
+          : "input, select";
+        const field = rows[0].querySelector(selector);
+        if (field) field.focus();
+      });
+    },
+    addOidcEntry(mode) {
+      const entry = this.createOidcEntry(mode);
+      this.oidcEntries.push(entry);
+      this.focusOidcEntry(entry);
+    },
+    removeOidcEntry(entry) {
+      this.oidcEntries = this.oidcEntries.filter(
+        ({ rowId }) => rowId !== entry.rowId
+      );
+    },
     validateConfigureModule() {
       this.clearErrors(this);
 
-      const required = { host: this.host };
-      if (this.oidc.mode === "manual") {
-        required.oidc_issuer = this.oidc.issuer;
-        required.oidc_client_id = this.oidc.client_id;
-        required.oidc_secret = this.oidc.secret || this.keepsSecret;
+      if (!this.host) this.error.host = this.$t("common.required");
+      let firstInvalidEntry;
+      for (const entry of this.oidcEntries) {
+        const required =
+          entry.mode === "ns8"
+            ? { provider: entry.provider, domain: entry.domain }
+            : {
+                issuer: entry.issuer,
+                client_id: entry.client_id,
+                secret: entry.secret || this.keepsSecret(entry),
+              };
+        const errors = {};
+        for (const field of Object.keys(required)) {
+          if (!required[field]) errors[field] = this.$t("common.required");
+        }
+        if (
+          entry.provider &&
+          !entry.domain &&
+          !this.oidcDomains(entry).length
+        ) {
+          errors.domain = this.$t("settings.oidc_no_domains");
+        }
+        entry.errors = errors;
+        if (!firstInvalidEntry && Object.keys(errors).length) {
+          firstInvalidEntry = entry;
+        }
       }
-      if (this.oidc.mode === "ns8") {
-        required.oidc_provider = this.oidc.provider;
-        required.oidc_domain = this.oidc.domain;
+      if (this.error.host) this.focusElement("host");
+      else if (firstInvalidEntry) {
+        if (firstInvalidEntry.mode === "manual") this.manualExpanded = true;
+        this.focusOidcEntry(firstInvalidEntry, true);
       }
-      const missing = Object.keys(required).filter((field) => !required[field]);
-      const emptyChoiceErrors = {
-        oidc_provider:
-          !this.oidcProviders.length && "settings.oidc_no_providers",
-        oidc_domain:
-          this.oidc.provider &&
-          !this.oidcDomains.length &&
-          "settings.oidc_no_domains",
-      };
-      missing.forEach((field) => {
-        this.error[field] = this.$t(
-          emptyChoiceErrors[field] || "common.required"
-        );
-      });
-      if (missing.length) {
-        this.focusElement(missing[0]);
-      }
-      return !missing.length;
+      return !this.error.host && !firstInvalidEntry;
     },
     oidcPayload() {
-      const { mode, provider, domain, issuer, client_id, secret } = this.oidc;
-      if (mode === "ns8") return { mode, provider, domain };
-      if (mode === "manual") return { mode, issuer, client_id, secret };
-      return { mode };
+      return this.oidcEntries.map((entry) => {
+        const { mode, provider, domain, issuer, client_id, label, secret } =
+          entry;
+        if (mode === "ns8") return { mode, provider, domain };
+        return { mode, issuer, client_id, ...(label ? { label } : {}), secret };
+      });
     },
     configureModuleValidationFailed(validationErrors) {
       this.loading.configureModule = false;
       let focusAlreadySet = false;
 
       for (const validationError of validationErrors) {
-        const param = validationError.parameter;
+        const param = validationError.parameter.startsWith("oidc")
+          ? "oidc_entries"
+          : validationError.parameter;
         // set i18n error message
         this.error[param] = this.$t("settings." + validationError.error);
 
         if (!focusAlreadySet) {
-          this.focusElement(param);
+          if (param === "oidc_entries") {
+            this.$nextTick(() => {
+              const notification = this.$refs.oidc_entries;
+              if (notification) notification.$el.focus();
+            });
+          } else this.focusElement(param);
           focusAlreadySet = true;
         }
       }
@@ -448,7 +550,7 @@ export default {
             host: this.host,
             lets_encrypt: this.isLetsEncryptEnabled,
             http2https: this.isHttpToHttpsEnabled,
-            oidc: this.oidcPayload(),
+            oidc_entries: this.oidcPayload(),
           },
           extra: {
             title: this.$t("settings.instance_configuration", {

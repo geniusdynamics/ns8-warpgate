@@ -32,17 +32,24 @@ def provider_name(issuer):
     return "ns8-oidc-" + hashlib.sha256(issuer.encode()).hexdigest()[:24]
 
 
+def entry_name(entry):
+    return entry.get("name") or provider_name(entry["issuer"])
+
+
 def read_settings():
     try:
-        return json.loads(SETTINGS.read_text())
+        saved = json.loads(SETTINGS.read_text())
     except FileNotFoundError:
-        return {"mode": "disabled"}
+        return []
+    if "entries" in saved:
+        return saved["entries"]
+    return [saved] if saved["mode"] != "disabled" else []
 
 
 def write_settings(settings):
     with tempfile.NamedTemporaryFile(mode="w", dir=SETTINGS.parent, delete=False) as stream:
         try:
-            json.dump(settings, stream)
+            json.dump({"entries": settings}, stream)
             stream.flush()
             os.replace(stream.name, SETTINGS)
         finally:
@@ -93,59 +100,96 @@ def invalid(field, code):
     raise SystemExit(3)
 
 
-def save_configuration(settings):
+def owned_domains(entries):
+    return {entry["domain"] for entry in entries if entry.get("owns_binding")}
+
+
+def remove_bindings(domains):
+    if not domains:
+        return
     import agent
 
-    current = read_settings()
-    old_domain = current.get("domain")
-    if current.get("owns_binding") and old_domain != settings.get("domain"):
-        bound = agent.get_bound_domain_list(agent.redis_connect())
-        if old_domain in bound:
-            agent.bind_user_domains([domain for domain in bound if domain != old_domain], check=True)
+    bound = agent.get_bound_domain_list(agent.redis_connect())
+    remaining = [domain for domain in bound if domain not in domains]
+    if remaining != bound:
+        agent.bind_user_domains(remaining, check=True)
+
+
+def save_configuration(settings):
+    owned = owned_domains(read_settings()) | owned_domains(settings)
+    used = {entry["domain"] for entry in settings if entry["mode"] == "ns8"}
+    remove_bindings(owned - used)
+    for entry in settings:
+        if entry["mode"] == "ns8" and entry["domain"] in owned:
+            entry["owns_binding"] = True
     write_settings(settings)
 
 
 def configure(request):
-
     current = read_settings()
-    requested = request.get("oidc")
-    mode = requested["mode"] if requested is not None else current["mode"]
-    if mode == "disabled":
-        return {"mode": mode}
+    if "oidc_entries" in request:
+        requested = request["oidc_entries"]
+    elif "oidc" in request:
+        legacy = request["oidc"]
+        first = [legacy] if legacy["mode"] != "disabled" else []
+        requested = first + current[1:]
+    else:
+        requested = current
 
     callback = f"https://{request['host']}{CALLBACK}"
-    if mode == "manual":
-        if requested is None:
-            return current
-        issuer, client = requested.get("issuer", ""), requested.get("client_id", "")
-        secret = requested.get("secret", "")
-        if not https_issuer(issuer):
-            invalid("oidc_issuer", "oidc_invalid_issuer")
-        if not client.strip():
-            invalid("oidc_client_id", "oidc_required")
-        if not secret and current["mode"] == mode and (issuer, client) == (current["issuer"], current["client_id"]):
-            secret = current["secret"]
-        if not secret:
-            invalid("oidc_secret", "oidc_required")
-        return {"mode": mode, "issuer": issuer, "client_id": client, "secret": secret}
-
-    selection = requested if requested is not None else current
-    provider, domain = selection.get("provider", ""), selection.get("domain", "")
-    module = os.environ["MODULE_ID"]
-    if (
-        current["mode"] == mode and current["provider"] == provider
-        and current["domain"] == domain and current["callback"] == callback
-        and current["client_id"] == module
-    ):
-        return current
-
+    entries = []
+    issuers = set()
+    names = set()
+    selections = set()
     try:
-        return register(current, selection, callback)
+        for selected in requested:
+            if selected["mode"] == "manual":
+                entry = manual_entry(selected, current)
+            else:
+                key = (selected.get("provider"), selected.get("domain"))
+                if key in selections:
+                    raise RegistrationError("oidc_entries", "oidc_duplicate_provider")
+                selections.add(key)
+                previous = next((item for item in current if item["mode"] == "ns8"
+                                 and (item["provider"], item["domain"]) == key), {})
+                if (previous.get("callback") == callback
+                        and previous.get("client_id") == os.environ["MODULE_ID"]):
+                    entry = dict(previous)
+                else:
+                    entry = register(previous, selected, callback)
+                if selected.get("label"):
+                    entry["label"] = selected["label"].strip()
+            entries.append(entry)
+            name = entry_name(entry)
+            if entry["issuer"] in issuers or name in names:
+                raise RegistrationError("oidc_entries", "oidc_duplicate_provider")
+            issuers.add(entry["issuer"])
+            names.add(name)
     except RegistrationError as error:
-        invalid(error.field, str(error))
+        remove_bindings(owned_domains(entries) - owned_domains(current))
+        field = "oidc_entries" if "oidc_entries" in request else error.field
+        invalid(field, str(error))
+    return entries
 
 
-def register(current, selection, callback, rotate=False):
+def manual_entry(selected, current):
+    issuer, client = selected.get("issuer", ""), selected.get("client_id", "")
+    if not https_issuer(issuer):
+        raise RegistrationError("oidc_issuer", "oidc_invalid_issuer")
+    if not client.strip():
+        raise RegistrationError("oidc_client_id", "oidc_required")
+    previous = next((item for item in current if item["mode"] == "manual"
+                     and (item["issuer"], item["client_id"]) == (issuer, client)), {})
+    secret = selected.get("secret") or previous.get("secret")
+    if not secret:
+        raise RegistrationError("oidc_secret", "oidc_required")
+    entry = {"mode": "manual", "issuer": issuer, "client_id": client, "secret": secret}
+    if selected.get("label"):
+        entry["label"] = selected["label"].strip()
+    return entry
+
+
+def register(current, selection, callback, rotate=False, other_issuers=()):
     import agent
     import agent.tasks
 
@@ -157,12 +201,14 @@ def register(current, selection, callback, rotate=False):
         raise RegistrationError("oidc_provider", "oidc_provider_unavailable")
     if domain not in endpoint["domains"]:
         raise RegistrationError("oidc_domain", "oidc_domain_unavailable")
+    issuer = endpoint["prefix"] + domain
+    if issuer in other_issuers:
+        raise RegistrationError("oidc_entries", "oidc_duplicate_provider")
     bound = agent.get_bound_domain_list(rdb)
     added = domain not in bound
     if added and not agent.bind_user_domains([*bound, domain]):
         raise RegistrationError("oidc_domain", "oidc_registration_failed")
 
-    issuer = endpoint["prefix"] + domain
     try:
         result = agent.tasks.run(
             f"module/{endpoint['module']}", "register-client",
@@ -195,6 +241,8 @@ def register(current, selection, callback, rotate=False):
             current.get("owns_binding", False) and current.get("domain") == domain
         ),
     }
+    if selection.get("label"):
+        refreshed["label"] = selection["label"]
     # Links are scoped to the selected provider and realm. A hostname change
     # of the same provider must keep the existing Warpgate credential key.
     if current.get("provider") == provider and current.get("domain") == domain:
@@ -204,11 +252,18 @@ def register(current, selection, callback, rotate=False):
     return refreshed
 
 
+def default_label(entry):
+    host = urlsplit(entry["issuer"]).hostname
+    if entry["mode"] == "ns8":
+        return f"{host} ({entry['domain']})"
+    return host
+
+
 def render(volume, host):
     source = volume / "warpgate.yaml"
     generated = volume / ".ns8-warpgate.yaml"
     settings = read_settings()
-    if settings["mode"] == "disabled":
+    if not settings:
         if not generated.is_symlink() or os.readlink(generated) != source.name:
             generated.unlink(missing_ok=True)
             generated.symlink_to(source.name)
@@ -219,27 +274,31 @@ def render(volume, host):
     try:
         config = yaml.safe_load(source.read_text())
         providers = config.get("sso_providers") or []
-        name = settings.get("name") or provider_name(settings["issuer"])
-        if any(provider["name"] == name for provider in providers):
-            raise ValueError("duplicate provider name")
+        names = {provider["name"] for provider in providers}
         config["external_host"] = host
         # Warpgate otherwise uses its container listener's port for the callback.
         config.setdefault("http", {})["external_port"] = 443
-        config["sso_providers"] = [*providers, {
-            "name": name,
-            "label": "OpenID Connect",
-            "auto_create_users": False,
-            "provider": {
-                "type": "custom",
-                "issuer_url": settings["issuer"],
-                "client_id": settings["client_id"],
-                "client_secret": settings["secret"],
-                "scopes": ["email", "profile"],
-                "role_mappings": {},
-                "admin_role_mappings": {},
-                "trust_unknown_audiences": False,
-            },
-        }]
+        config["sso_providers"] = providers
+        for entry in settings:
+            name = entry_name(entry)
+            if name in names:
+                raise ValueError("duplicate provider name")
+            names.add(name)
+            config["sso_providers"].append({
+                "name": name,
+                "label": entry.get("label") or default_label(entry),
+                "auto_create_users": False,
+                "provider": {
+                    "type": "custom",
+                    "issuer_url": entry["issuer"],
+                    "client_id": entry["client_id"],
+                    "client_secret": entry["secret"],
+                    "scopes": ["email", "profile"],
+                    "role_mappings": {},
+                    "admin_role_mappings": {},
+                    "trust_unknown_audiences": False,
+                },
+            })
         with tempfile.NamedTemporaryFile(mode="w", dir=volume, delete=False) as stream:
             try:
                 yaml.safe_dump(config, stream, sort_keys=False)

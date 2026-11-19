@@ -18,10 +18,13 @@ config = {
     "lets_encrypt": os.getenv("TRAEFIK_LETS_ENCRYPT") == "True",
 }
 
-oidc = warpgate_oidc.read_settings()
-config["oidc"] = {key: value for key, value in oidc.items() if key in {
-    "mode", "provider", "domain", "issuer", "client_id",
-}}
+entries = warpgate_oidc.read_settings()
+visible = {"mode", "provider", "domain", "issuer", "client_id", "label"}
+config["oidc_entries"] = [
+    {key: value for key, value in entry.items() if key in visible}
+    for entry in entries
+]
+config["oidc"] = config["oidc_entries"][0] if entries else {"mode": "disabled"}
 config["oidc_providers"] = [
     {key: provider[key] for key in ("id", "label", "domains")}
     for provider in warpgate_oidc.discover(agent.redis_connect()).values()

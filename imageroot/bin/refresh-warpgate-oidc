@@ -7,20 +7,30 @@ import sys
 import agent
 import warpgate_oidc
 
-parser = argparse.ArgumentParser(description="Refresh Warpgate's registered NS8 OIDC client")
-parser.add_argument("--rotate-secret", action="store_true", help="generate a new OIDC client secret")
+parser = argparse.ArgumentParser(description="Refresh Warpgate's registered NS8 OIDC clients")
+parser.add_argument("--rotate-secret", action="store_true", help="generate new secrets for the configured NS8 clients")
 args = parser.parse_args()
 
 with warpgate_oidc.settings_lock():
     current = warpgate_oidc.read_settings()
-    if current["mode"] != "ns8":
-        if args.rotate_secret:
-            sys.exit("No NS8 OIDC client is configured")
-        sys.exit(0)
-    try:
-        updated = warpgate_oidc.register(current, current, current["callback"], rotate=args.rotate_secret)
-    except warpgate_oidc.RegistrationError as error:
-        sys.exit(f"Warpgate OIDC refresh failed ({error})")
+    if args.rotate_secret and not any(entry["mode"] == "ns8" for entry in current):
+        sys.exit("No NS8 OIDC client is configured")
+    updated = []
+    errors = []
+    for index, entry in enumerate(current):
+        replacement = entry
+        if entry["mode"] == "ns8":
+            try:
+                peers = updated + current[index + 1:]
+                replacement = warpgate_oidc.register(
+                    entry, entry, entry["callback"], rotate=args.rotate_secret,
+                    other_issuers={peer["issuer"] for peer in peers},
+                )
+            except warpgate_oidc.RegistrationError as error:
+                errors.append(str(error))
+        updated.append(replacement)
     if updated != current:
         warpgate_oidc.save_configuration(updated)
         agent.run_helper("systemctl", "--user", "try-restart", "warpgate.service").check_returncode()
+    if errors:
+        sys.exit("Warpgate OIDC refresh failed (" + ", ".join(sorted(set(errors))) + ")")

@@ -8,7 +8,8 @@ import agent
 import warpgate_oidc
 
 event = json.load(sys.stdin)
-current = warpgate_oidc.read_settings()
-if current["mode"] == "ns8" and event.get("module_uuid") == current["provider"]:
+entries = warpgate_oidc.read_settings()
+if any(entry["mode"] == "ns8" and entry["provider"] == event.get("module_uuid")
+       for entry in entries):
     agent.run_helper("systemctl", "--user", "--no-block", "start",
                      "warpgate-oidc-refresh.service").check_returncode()
