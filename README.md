@@ -186,6 +186,24 @@ On the NS8 module **Settings** page, choose an OpenID Connect mode.
 - **External provider** uses the issuer URL, client ID, and client secret from a confidential OIDC client that you register. Use the callback URL shown in Settings. Leaving the secret blank keeps it when the issuer and client ID are unchanged.
 - **NS8 provider** lists registered NethServer IdP, Keycloak, and LemonLDAP::NG instances. Choose the provider and a user domain it serves. NS8 registers the client and callback automatically.
 
+Warpgate refreshes the selected NS8 registration when that provider's service
+record changes and retries periodically. Failed refreshes leave the cached
+configuration in place. When the same provider and domain move to a new
+hostname, Warpgate keeps the existing provider name used by linked accounts.
+The service restarts only when the effective configuration changes.
+
+To rotate the client secret on demand, run this on the module's node:
+
+```bash
+runagent -m warpgate1 refresh-warpgate-oidc --rotate-secret
+```
+
+Without the flag, the command retrieves the current registration. Warpgate
+stores the secret in private module state, which is included in NS8 backups.
+The module settings manage one NS8 or external provider. You can configure
+additional providers in the native `warpgate.yaml` and link them to users
+in Warpgate.
+
 OIDC requires HTTPS and a provider certificate trusted by the Warpgate container. The provider must return an email claim and control ownership of that address. Use trusted providers and, in Warpgate's administration interface, add an SSO credential with the user's email and the specific **OpenID Connect** provider to each account that should sign in. Keep a local administrator account. The module does not provision Warpgate users or map provider claims to Warpgate roles.
 
 The callback is `https://<warpgate-host>/@warpgate/api/sso/return`. Update it at the external provider if the Warpgate hostname changes. Disabling module-managed OIDC removes its sign-in option and stored credentials. You can retire an unused client at the provider.

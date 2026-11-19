@@ -1,16 +1,35 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 
+import fcntl
 import hashlib
 import json
 import os
 import re
 import sys
 import tempfile
+from contextlib import contextmanager
 from pathlib import Path
 from urllib.parse import urlsplit
 
 CALLBACK = "/@warpgate/api/sso/return"
 SETTINGS = Path(os.environ.get("AGENT_STATE_DIR", ".")) / "oidc.json"
+
+
+class RegistrationError(Exception):
+    def __init__(self, field, code):
+        super().__init__(code)
+        self.field = field
+
+
+@contextmanager
+def settings_lock():
+    with SETTINGS.with_suffix(".lock").open("a") as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX)
+        yield
+
+
+def provider_name(issuer):
+    return "ns8-oidc-" + hashlib.sha256(issuer.encode()).hexdigest()[:24]
 
 
 def read_settings():
@@ -87,8 +106,6 @@ def save_configuration(settings):
 
 
 def configure(request):
-    import agent
-    import agent.tasks
 
     current = read_settings()
     requested = request.get("oidc")
@@ -122,22 +139,39 @@ def configure(request):
     ):
         return current
 
+    try:
+        return register(current, selection, callback)
+    except RegistrationError as error:
+        invalid(error.field, str(error))
+
+
+def register(current, selection, callback, rotate=False):
+    import agent
+    import agent.tasks
+
+    provider, domain = selection.get("provider", ""), selection.get("domain", "")
+    module = os.environ["MODULE_ID"]
     rdb = agent.redis_connect()
     endpoint = discover(rdb).get(provider)
     if not endpoint:
-        invalid("oidc_provider", "oidc_provider_unavailable")
+        raise RegistrationError("oidc_provider", "oidc_provider_unavailable")
     if domain not in endpoint["domains"]:
-        invalid("oidc_domain", "oidc_domain_unavailable")
+        raise RegistrationError("oidc_domain", "oidc_domain_unavailable")
     bound = agent.get_bound_domain_list(rdb)
     added = domain not in bound
     if added and not agent.bind_user_domains([*bound, domain]):
-        invalid("oidc_domain", "oidc_registration_failed")
+        raise RegistrationError("oidc_domain", "oidc_registration_failed")
 
     issuer = endpoint["prefix"] + domain
     try:
         result = agent.tasks.run(
             f"module/{endpoint['module']}", "register-client",
-            data={"domain": domain, "redirect_uris": [callback], "post_logout_redirect_uris": []},
+            data={
+                "domain": domain,
+                "redirect_uris": [callback],
+                "post_logout_redirect_uris": [callback.removesuffix(CALLBACK) + "/"],
+                "rotate_secret": rotate,
+            },
             extra={"isNotificationHidden": True},
         )
         response = result.get("output")
@@ -152,15 +186,22 @@ def configure(request):
     except Exception:
         if added:
             agent.bind_user_domains(bound)
-        invalid("oidc_provider", "oidc_registration_failed")
+        raise RegistrationError("oidc_provider", "oidc_registration_failed") from None
 
-    return {
-        "mode": mode, "provider": provider, "domain": domain, "issuer": issuer,
+    refreshed = {
+        "mode": "ns8", "provider": provider, "domain": domain, "issuer": issuer,
         "client_id": module, "secret": secret, "callback": callback,
         "owns_binding": added or (
             current.get("owns_binding", False) and current.get("domain") == domain
         ),
     }
+    # Links are scoped to the selected provider and realm. A hostname change
+    # of the same provider must keep the existing Warpgate credential key.
+    if current.get("provider") == provider and current.get("domain") == domain:
+        name = current.get("name") or provider_name(current["issuer"])
+        if name != provider_name(issuer):
+            refreshed["name"] = name
+    return refreshed
 
 
 def render(volume, host):
@@ -178,7 +219,7 @@ def render(volume, host):
     try:
         config = yaml.safe_load(source.read_text())
         providers = config.get("sso_providers") or []
-        name = "ns8-oidc-" + hashlib.sha256(settings["issuer"].encode()).hexdigest()[:24]
+        name = settings.get("name") or provider_name(settings["issuer"])
         if any(provider["name"] == name for provider in providers):
             raise ValueError("duplicate provider name")
         config["external_host"] = host

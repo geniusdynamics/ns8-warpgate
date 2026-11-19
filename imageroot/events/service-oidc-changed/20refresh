@@ -1,0 +1,14 @@
+#!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-or-later
+
+import json
+import sys
+
+import agent
+import warpgate_oidc
+
+event = json.load(sys.stdin)
+current = warpgate_oidc.read_settings()
+if current["mode"] == "ns8" and event.get("module_uuid") == current["provider"]:
+    agent.run_helper("systemctl", "--user", "--no-block", "start",
+                     "warpgate-oidc-refresh.service").check_returncode()

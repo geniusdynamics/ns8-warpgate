@@ -128,6 +128,14 @@ Check if a published NS8 provider can be selected and registered
     Should Be Equal    ${config.oidc.issuer}    https://${KEYCLOAK_HOST}/realms/${OIDC_DOMAIN}
     Should Be Equal    ${config.oidc.client_id}    ${module_id}
     Dictionary Should Not Contain Key    ${config.oidc}    secret
+    ${before} =    Run node command    runagent -m ${module_id} sha256sum oidc.json
+    Run node command    runagent -m ${module_id} refresh-warpgate-oidc
+    ${same} =    Run node command    runagent -m ${module_id} sha256sum oidc.json
+    Should Be Equal    ${same}    ${before}
+    Run node command    runagent -m ${module_id} refresh-warpgate-oidc --rotate-secret
+    ${after} =    Run node command    runagent -m ${module_id} sha256sum oidc.json
+    Should Not Be Equal    ${after}    ${before}
+    OIDC provider count should be    1
     Configure OIDC    {"mode":"disabled"}
     OIDC provider count should be    0
 
