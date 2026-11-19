@@ -8,6 +8,7 @@
 #
 [Unit]
 Description=Warpgate bastion
+Wants=warpgate-oidc-refresh.timer
 
 [Service]
 Environment=PODMAN_SYSTEMD_UNIT=%n

@@ -35,6 +35,10 @@ Configure OIDC
     ...    return_rc=True  return_stdout=False
     Should Be Equal As Integers    ${rc}    0
 
+Configure OIDC entries
+    [Arguments]    ${entries}
+    Run node command    api-cli run module/${module_id}/configure-module --data '{"host":"${HOST}","http2https":true,"lets_encrypt":false,"oidc_entries":${entries}}'
+
 OIDC provider count should be
     [Arguments]    ${expected}
     Wait Until Keyword Succeeds    60s    3s    Check OIDC provider count    ${expected}
@@ -128,7 +132,27 @@ Check if a published NS8 provider can be selected and registered
     Should Be Equal    ${config.oidc.issuer}    https://${KEYCLOAK_HOST}/realms/${OIDC_DOMAIN}
     Should Be Equal    ${config.oidc.client_id}    ${module_id}
     Dictionary Should Not Contain Key    ${config.oidc}    secret
-    Configure OIDC    {"mode":"disabled"}
+    ${before} =    Run node command    runagent -m ${module_id} sha256sum oidc.json
+    Run node command    runagent -m ${module_id} refresh-warpgate-oidc
+    ${same} =    Run node command    runagent -m ${module_id} sha256sum oidc.json
+    Should Be Equal    ${same}    ${before}
+    Run node command    runagent -m ${module_id} refresh-warpgate-oidc --rotate-secret
+    ${after} =    Run node command    runagent -m ${module_id} sha256sum oidc.json
+    Should Not Be Equal    ${after}    ${before}
+    OIDC provider count should be    1
+    Configure OIDC entries
+    ...    [{"mode":"ns8","provider":"${provider}","domain":"${OIDC_DOMAIN}"},{"mode":"manual","label":"Provider A","issuer":"https://a.example.org/realm","client_id":"client-a","secret":"secret-a"},{"mode":"manual","label":"Provider B","issuer":"https://b.example.org/realm","client_id":"client-b","secret":"secret-b"}]
+    OIDC provider count should be    3
+    ${output} =    Run node command    api-cli run module/${module_id}/get-configuration
+    &{config} =    Evaluate    json.loads($output)    json
+    Length Should Be    ${config.oidc_entries}    3
+    FOR    ${entry}    IN    @{config.oidc_entries}
+        Dictionary Should Not Contain Key    ${entry}    secret
+    END
+    Configure OIDC entries
+    ...    [{"mode":"ns8","provider":"${provider}","domain":"${OIDC_DOMAIN}"},{"mode":"manual","label":"Provider B","issuer":"https://b.example.org/realm","client_id":"client-b"}]
+    OIDC provider count should be    2
+    Configure OIDC entries    []
     OIDC provider count should be    0
 
 Check if warpgate works as expected

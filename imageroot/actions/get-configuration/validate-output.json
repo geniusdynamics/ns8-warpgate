@@ -84,9 +84,47 @@
                 },
                 "domain": {
                     "type": "string"
+                },
+                "label": {
+                    "type": "string",
+                    "maxLength": 120
                 }
             },
             "additionalProperties": false
+        },
+        "oidc_entries": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "required": [
+                    "mode"
+                ],
+                "properties": {
+                    "mode": {
+                        "enum": [
+                            "manual",
+                            "ns8"
+                        ]
+                    },
+                    "issuer": {
+                        "type": "string"
+                    },
+                    "client_id": {
+                        "type": "string"
+                    },
+                    "provider": {
+                        "type": "string"
+                    },
+                    "domain": {
+                        "type": "string"
+                    },
+                    "label": {
+                        "type": "string",
+                        "maxLength": 120
+                    }
+                },
+                "additionalProperties": false
+            }
         }
     }
 }

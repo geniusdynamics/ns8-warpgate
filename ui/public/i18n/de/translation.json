@@ -12,10 +12,16 @@
         "validation_error": "Fehlerhafte Prüfung"
     },
     "settings": {
+    "advanced": "Erweitert",
     "oidc_mode": "Anmeldung mit OpenID Connect",
     "oidc_mode_help": "Die lokale Warpgate-Anmeldung bleibt verfügbar.",
     "oidc_manual": "Manuell (externer Anbieter)",
     "oidc_ns8": "NS8-Anbieter",
+    "oidc_add_ns8": "NS8-Anbieter hinzufügen",
+    "oidc_add_manual": "Manuellen Anbieter hinzufügen",
+    "oidc_remove": "Anbieter entfernen",
+    "oidc_label": "Anmeldebezeichnung (optional)",
+    "oidc_duplicate_provider": "Jede Kombination aus Anbieter und Domäne oder jede Aussteller-URL kann nur einmal konfiguriert werden.",
     "oidc_issuer": "Issuer-URL",
     "oidc_client_id": "Client-ID",
     "oidc_secret": "Client-Geheimnis",
