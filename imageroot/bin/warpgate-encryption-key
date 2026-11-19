@@ -1,0 +1,116 @@
+#!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-or-later
+
+import argparse
+import base64
+import binascii
+import fcntl
+import getpass
+import hashlib
+import os
+from pathlib import Path
+import secrets
+import subprocess
+import sys
+import tempfile
+
+CURRENT = "WARPGATE_ENCRYPTION_KEY"
+PREVIOUS = "WARPGATE_ENCRYPTION_KEY_OLD"
+
+
+def fingerprint(value):
+    try:
+        key = base64.b64decode(value, validate=True)
+    except (ValueError, binascii.Error):
+        key = b""
+    if len(key) != 32 or base64.b64encode(key).decode() != value:
+        raise SystemExit("An encryption key must be a base64-encoded 32-byte value")
+    return hashlib.sha256(key).hexdigest()[:8]
+
+
+def read_keyring(path):
+    try:
+        with path.open(encoding="ascii") as stream:
+            if os.fstat(stream.fileno()).st_mode & 0o077:
+                raise SystemExit("Encryption key file must be private (mode 0600)")
+            values = dict(line.rstrip("\n").split("=", 1) for line in stream if line.strip())
+    except FileNotFoundError:
+        return []
+    except (ValueError, UnicodeError):
+        raise SystemExit("Invalid Warpgate encryption key file") from None
+    if not values.get(CURRENT) or values.keys() - {CURRENT, PREVIOUS}:
+        raise SystemExit("Invalid Warpgate encryption key file")
+    keys = [values[CURRENT], *(key for key in values.get(PREVIOUS, "").split(",") if key)]
+    for key in keys:
+        fingerprint(key)
+    return keys
+
+
+def write_keyring(path, keys):
+    with tempfile.NamedTemporaryFile(mode="w", encoding="ascii", dir=path.parent, delete=False) as stream:
+        try:
+            stream.write(f"{CURRENT}={keys[0]}\n")
+            if len(keys) > 1:
+                stream.write(f"{PREVIOUS}={','.join(keys[1:])}\n")
+            stream.flush()
+            os.fsync(stream.fileno())
+            os.replace(stream.name, path)
+            directory = os.open(path.parent, os.O_RDONLY | os.O_DIRECTORY)
+            try:
+                os.fsync(directory)
+            finally:
+                os.close(directory)
+        finally:
+            Path(stream.name).unlink(missing_ok=True)
+
+
+def main():
+    parser = argparse.ArgumentParser(description="Manage Warpgate's database encryption keyring")
+    parser.add_argument("action", choices=("status", "enable", "rotate"))
+    parser.add_argument("--import-key", action="store_true",
+                        help="prompt for an existing key instead of generating one")
+    args = parser.parse_args()
+    if args.action == "status" and args.import_key:
+        parser.error("--import-key requires enable or rotate")
+
+    state = Path(os.environ["AGENT_STATE_DIR"])
+    path = state / "encryption.env"
+    if args.action == "status":
+        keys = read_keyring(path)
+        if not keys:
+            print("Encryption key is not configured")
+        else:
+            print(f"Configured primary key: {fingerprint(keys[0])}")
+            print(f"Retained previous keys: {len(keys) - 1}")
+        return
+
+    with (state / ".module-backup.lock").open("a") as lock:
+        try:
+            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            sys.exit("Wait for the NS8 backup or module update to finish before changing the key")
+        keys = read_keyring(path)
+        if args.action == "enable" and keys:
+            print(f"Encryption key is already configured ({fingerprint(keys[0])})")
+            return
+        if args.action == "rotate" and not keys:
+            sys.exit("Use enable to configure the first encryption key")
+        if args.import_key:
+            if not sys.stdin.isatty():
+                sys.exit("Import the key from an interactive terminal")
+            new_key = getpass.getpass("Warpgate encryption key: ")
+            if new_key != getpass.getpass("Confirm encryption key: "):
+                sys.exit("The keys do not match")
+        else:
+            new_key = base64.b64encode(secrets.token_bytes(32)).decode()
+        new_fingerprint = fingerprint(new_key)
+        if any(fingerprint(key) == new_fingerprint for key in keys):
+            sys.exit("Choose a key that is not already in the Warpgate keyring")
+        write_keyring(path, [new_key, *keys])
+        if subprocess.run(["systemctl", "--user", "try-restart", "warpgate.service"]).returncode:
+            sys.exit("Keyring saved. Start Warpgate again to apply it")
+        print(f"Configured primary key: {new_fingerprint}")
+
+
+if __name__ == "__main__":
+    main()

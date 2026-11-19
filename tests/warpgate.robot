@@ -71,6 +71,11 @@ Remove OIDC fixtures
         END
     END
 
+Database credentials should use key
+    [Arguments]    ${fingerprint}
+    Run node command
+    ...    runagent -m ${module_id} sh -c 'volume=$(podman volume inspect --format "{{.Mountpoint}}" data) && exec podman unshare python3 -c "$1" "$volume/db/db.sqlite3" "$2"' sh 'import sqlite3,sys; db=sqlite3.connect(sys.argv[1]); fp,retiring,key=db.execute("select encryption_key_fp, retiring_key_fp, ssh_host_key_ed25519 from parameters").fetchone(); assert fp==sys.argv[2] and retiring is None and "wgenc:v1:"+fp+":" in key' ${fingerprint}
+
 *** Test Cases ***
 Check if warpgate is installed correctly
     ${output}  ${rc} =    Execute Command    add-module ${IMAGE_URL} 1
@@ -162,6 +167,21 @@ Check if the SSH and MySQL listeners are published
     ${rc} =    Execute Command    runagent -m ${module_id} sh -c 'ss -ltn | grep -q ":$TCP_PORT_SSH " && ss -ltn | grep -q ":$TCP_PORT_MYSQL "'
     ...    return_rc=True  return_stdout=False
     Should Be Equal As Integers    ${rc}  0
+
+Check if Warpgate encrypts and rotates existing database credentials
+    ${before} =    Run node command    runagent -m ${module_id} warpgate-encryption-key status
+    Should Be Equal    ${before}    Encryption key is not configured
+    ${enabled} =    Run node command    runagent -m ${module_id} warpgate-encryption-key enable
+    ${first} =    Evaluate    $enabled.split()[-1]
+    Wait Until Keyword Succeeds    60s    3s    Database credentials should use key    ${first}
+    ${rotated} =    Run node command    runagent -m ${module_id} warpgate-encryption-key rotate
+    ${second} =    Evaluate    $rotated.split()[-1]
+    Should Not Be Equal    ${first}    ${second}
+    Wait Until Keyword Succeeds    60s    3s    Database credentials should use key    ${second}
+    ${status} =    Run node command    runagent -m ${module_id} warpgate-encryption-key status
+    Should Contain    ${status}    Retained previous keys: 1
+    ${mode} =    Run node command    runagent -m ${module_id} stat -c %a encryption.env
+    Should Be Equal    ${mode}    600
 
 Take screenshots
     [Tags]    ui
