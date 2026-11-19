@@ -222,3 +222,47 @@ external clients at their provider.
 The module reads `/data/warpgate.yaml` as the source for native settings and
 any providers configured directly there. Restart Warpgate after editing the
 file to regenerate its effective configuration.
+
+### Encrypting credentials in the Warpgate database
+
+On the module's node, enable a key for an existing or new installation:
+
+```bash
+runagent -m warpgate1 warpgate-encryption-key enable
+runagent -m warpgate1 warpgate-encryption-key status
+```
+
+The module generates a random 32-byte key, stores it in the private
+`state/encryption.env` file, and restarts a running instance. Warpgate uses
+the key to encrypt supported database fields, including stored target
+credentials, SSH client and host keys, and authentication credentials for its
+secret backends. Warpgate handles encryption of existing records at
+startup. The keys cover those database fields. The OIDC client settings
+and bootstrap password are stored in separate private files.
+
+Rotate the key from the node while you have a current backup:
+
+```bash
+runagent -m warpgate1 warpgate-encryption-key rotate
+runagent -m warpgate1 journalctl --user -u warpgate.service
+```
+
+Rotation sets a new `WARPGATE_ENCRYPTION_KEY` and retains earlier keys in
+`WARPGATE_ENCRYPTION_KEY_OLD` so Warpgate can read and re-encrypt existing
+credentials. The status command shows the configured primary fingerprint
+and how many previous keys were retained. Check the Warpgate logs and test
+your stored target credentials after rotation. Keep the previous keys
+available during migration.
+
+Module backups include the keyring. Protect the backup repository and
+keep a secure copy of the keyring with any exported database. Restoring an
+encrypted database requires its corresponding keyring and a module
+release that loads it. Keep the database and keyring together when
+restoring or moving an instance.
+
+If a database already uses a key, run `enable --import-key` and enter that
+key at the hidden prompts. For instances sharing an external database,
+coordinate changes across all nodes and use the same primary key.
+`rotate --import-key` applies a previously agreed replacement key on
+each node. Warpgate delays re-encryption while running nodes still report
+a different primary key.
