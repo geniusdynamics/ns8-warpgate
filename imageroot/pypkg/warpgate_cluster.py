@@ -163,6 +163,8 @@ def pg_records(rdb):
             })
         except (KeyError, ValueError, TypeError):
             continue
+    # A witness holds no data and serves no client endpoint
+    result = [r for r in result if r["role"] != "witness"]
     return sorted(result, key=lambda r: (r["cluster_id"], r["module_id"]))
 
 
@@ -522,7 +524,30 @@ def provision(openbao_id):
     token = (unwrapped.get("auth") or {}).get("client_token")
     if not token:
         raise ClusterError("vault_openbao", "openbao_unwrap_failed", openbao_id)
+    max_ttl = out.get("token_explicit_max_ttl")
+    if isinstance(max_ttl, int) and max_ttl > 0:
+        agent_env = {"WARPGATE_VAULT_MAX_TTL": str(max_ttl)}
+        import agent
+        agent.mset_env(agent_env)
+        os.environ.update(agent_env)
     return address, token, out["kv_mount"], out["kv_prefix"]
+
+
+def openbao_client_call(openbao_id, action):
+    """get-client-status or request-client-access on ns8-openbao (role
+    secretsclient). Returns its output (no secrets) or None."""
+    import agent.tasks
+
+    try:
+        ret = agent.tasks.run(agent_id=f"module/{openbao_id}", action=action, data={},
+                              extra={"isNotificationHidden": True})
+    except Exception:  # noqa: BLE001 - status is advisory
+        return None
+    out = ret.get("output")
+    if ret.get("exit_code") != 0 or not isinstance(out, dict):
+        return None
+    return {key: out.get(key) for key in ("status", "ready", "client_provisioning", "address", "kv_mount",
+                                          "kv_prefix", "openbao_module_id")}
 
 
 def save_vault_env(address, token):
