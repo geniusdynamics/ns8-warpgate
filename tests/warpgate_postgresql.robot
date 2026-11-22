@@ -34,11 +34,13 @@ Warpgate admin API
     ${script} =    Catenate    SEPARATOR=\n
     ...    set -e
     ...    . ./passwords.env
-    ...    jar=$(mktemp); trap 'rm -f $jar' EXIT
+    ...    jar=$(mktemp)
+    ...    trap "rm -f $jar" EXIT
     ...    c="curl -ksf -c $jar -b $jar --resolve $1:443:127.0.0.1 -H Content-Type:application/json"
-    ...    printf '{"username":"admin","password":"%s"}' "$WARPGATE_ADMIN_PASSWORD" | $c -o /dev/null -d @- https://$1/@warpgate/api/auth/login
+    ...    printf "{\\"username\\":\\"admin\\",\\"password\\":\\"%s\\"}" "$WARPGATE_ADMIN_PASSWORD" | $c -o /dev/null -d @- "https://$1/@warpgate/api/auth/login"
     ...    if [ -n "$4" ]; then $c -X "$2" -d "$4" "https://$1/@warpgate/admin/api$3"; else $c -X "$2" "https://$1/@warpgate/admin/api$3"; fi
-    ${out} =    Run node command    runagent -m ${id} sh -c '${script}' sh ${host} ${method} ${path} '${body}'
+    ${b64} =    Evaluate    base64.b64encode($script.encode()).decode()    base64
+    ${out} =    Run node command    runagent -m ${id} sh -c "$(echo ${b64} | base64 -d)" sh ${host} ${method} ${path} '${body}'
     RETURN    ${out}
 
 Role names
