@@ -88,7 +88,7 @@ Switch to PostgreSQL keeps the data
     Wait Until Keyword Succeeds    120s    5s    Admin login works    ${wg1}    ${HOST1}
     ${names} =    Role names    ${wg1}    ${HOST1}
     List Should Contain Value    ${names}    robot-migrated
-    ${url} =    Run node command    runagent -m ${wg1} sh -c 'podman unshare cat "$(podman volume inspect --format "{{.Mountpoint}}" data)/warpgate.yaml"'
+    ${url} =    Run node command    runagent -m ${wg1} sh -c 'podman unshare cat "$(podman volume inspect --format "{{.Mountpoint}}" data)/.ns8-warpgate.yaml"'
     Should Contain    ${url}    postgres://
     ${password} =    Run node command    runagent -m ${wg1} sh -c '. ./database.env && printf %s "$PGPASSWORD"'
     Should Not Contain    ${url}    ${password}
