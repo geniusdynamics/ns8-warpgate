@@ -20,4 +20,18 @@ for evar in [
     ]:
     agent.set_env(evar, original_environment[evar])
 
+# Database settings (no secrets): reconnect to the same PostgreSQL database
+for evar in [
+        "WARPGATE_DB_MODE",
+        "WARPGATE_DB_INSTANCE",
+        "WARPGATE_DB_PROVIDER",
+        "WARPGATE_DB_CLUSTER_ID",
+        "WARPGATE_DB_NAME",
+        "WARPGATE_DB_USER",
+        "WARPGATE_DB_HOST",
+        "WARPGATE_DB_PORT",
+    ]:
+    if evar in original_environment:
+        agent.set_env(evar, original_environment[evar])
+
 agent.dump_env()

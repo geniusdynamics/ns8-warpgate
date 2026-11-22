@@ -1,0 +1,15 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "title": "Admission of a Warpgate peer",
+    "$id": "http://nethserver.org/json-schema/task/output/warpgate/admit-peer",
+    "type": "object",
+    "required": ["database", "db_cluster_id"],
+    "properties": {
+        "database": {"type": "string"},
+        "db_cluster_id": {"type": "string"},
+        "encryption_key": {"type": "string"},
+        "encryption_key_old": {"type": "string"},
+        "tls_certificate": {"type": "string"},
+        "tls_key": {"type": "string"}
+    }
+}

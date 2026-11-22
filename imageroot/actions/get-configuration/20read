@@ -10,6 +10,7 @@ import os
 import sys
 
 import agent
+import warpgate_cluster as wc
 import warpgate_oidc
 
 config = {
@@ -30,5 +31,26 @@ config["oidc_providers"] = [
     for provider in warpgate_oidc.discover(agent.redis_connect()).values()
 ]
 config["oidc_callback_path"] = warpgate_oidc.CALLBACK
+
+# Database, cluster and OpenBao settings: no secrets, only *_set flags
+rdb = agent.redis_connect(use_replica=True)
+cur = wc.settings()
+config["database"] = {
+    "mode": cur["db_mode"], "instance": cur["db_instance"], "provider": cur["db_provider"],
+    "database": cur["db_name"], "host": cur["db_host"], "port": int(cur["db_port"] or 0),
+    "cluster_id": cur["db_cluster_id"], "password_set": bool(wc.database_password()),
+}
+config["postgresql19c_instances"] = [
+    {key: rec[key] for key in ("module_id", "node", "cluster_id", "ha_mode")} for rec in wc.pg_records(rdb)
+]
+config["cluster"] = {"mode": cur["cluster_mode"], "peer": cur["cluster_peer"]}
+config["peer_candidates"] = wc.peer_candidates(rdb)
+config.update(wc.vault_settings())
+config["openbao_servers"] = sorted(
+    ({"module_id": module_id, "node": str(node_id), "ui_name": rdb.get(f"module/{module_id}/ui_name") or ""}
+     for module_id, node_id in (rdb.hgetall("cluster/module_node") or {}).items()
+     if wc.image_name_of(rdb.hget(f"module/{module_id}/environment", "IMAGE_URL")) == "openbao"),
+    key=lambda item: item["module_id"],
+)
 
 json.dump(config, fp=sys.stdout)

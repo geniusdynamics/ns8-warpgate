@@ -1,0 +1,13 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "title": "Admit a Warpgate peer",
+    "$id": "http://nethserver.org/json-schema/task/input/warpgate/admit-peer",
+    "description": "Called by a Warpgate instance that joins the cluster of this instance (role wgpeer, plus an approval with set-peer-access). Returns the shared database name and key material to the caller only",
+    "examples": [{"module_id": "warpgate2"}],
+    "type": "object",
+    "required": ["module_id"],
+    "additionalProperties": false,
+    "properties": {
+        "module_id": {"type": "string", "pattern": "^[a-z][a-z0-9_-]*[0-9]+$"}
+    }
+}

@@ -8,6 +8,22 @@
             "host": "warpgate.domain.org",
             "http2https": true,
             "lets_encrypt": true
+        },
+        {
+            "host": "warpgate2.domain.org",
+            "http2https": true,
+            "lets_encrypt": true,
+            "database": {
+                "mode": "postgresql19c",
+                "instance": ""
+            },
+            "cluster": {
+                "mode": "join",
+                "peer": "warpgate1"
+            },
+            "vault_enabled": true,
+            "vault_mode": "provisioned",
+            "vault_openbao": "openbao1"
         }
     ],
     "type": "object",
@@ -106,6 +122,87 @@
                 },
                 "additionalProperties": false
             }
+        },
+        "database": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+                "mode"
+            ],
+            "description": "Database: embedded SQLite (default) or a database of an ns8-postgresql19c instance",
+            "properties": {
+                "mode": {
+                    "enum": [
+                        "embedded",
+                        "postgresql19c"
+                    ]
+                },
+                "instance": {
+                    "type": "string",
+                    "pattern": "^([a-z][a-z0-9_-]*[0-9]+)?$",
+                    "description": "ns8-postgresql19c module ID, empty to pick one (the instance on this node first)"
+                },
+                "rotate": {
+                    "type": "boolean",
+                    "description": "Ask grant-database for a new password"
+                }
+            }
+        },
+        "cluster": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+                "mode"
+            ],
+            "description": "Warpgate cluster membership: several instances sharing one PostgreSQL database",
+            "properties": {
+                "mode": {
+                    "enum": [
+                        "standalone",
+                        "create",
+                        "join"
+                    ]
+                },
+                "peer": {
+                    "type": "string",
+                    "pattern": "^([a-z][a-z0-9_-]*[0-9]+)?$",
+                    "description": "Warpgate instance to join (it must approve this one with set-peer-access)"
+                }
+            }
+        },
+        "vault_enabled": {
+            "type": "boolean",
+            "description": "Mirror the secrets to OpenBao"
+        },
+        "vault_mode": {
+            "enum": [
+                "manual",
+                "provisioned"
+            ]
+        },
+        "vault_openbao": {
+            "type": "string",
+            "description": "ns8-openbao module ID (provisioned mode)"
+        },
+        "vault_reprovision": {
+            "type": "boolean"
+        },
+        "vault_address": {
+            "type": "string",
+            "description": "VAULT_ADDR (manual mode)"
+        },
+        "vault_token": {
+            "type": "string",
+            "writeOnly": true,
+            "description": "Token (manual mode); empty keeps the saved one"
+        },
+        "vault_mount": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_./-]*$"
+        },
+        "vault_path": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_./-]*$"
         }
     }
 }

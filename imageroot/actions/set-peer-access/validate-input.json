@@ -1,0 +1,14 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "title": "Allow a Warpgate instance to join",
+    "$id": "http://nethserver.org/json-schema/task/input/warpgate/set-peer-access",
+    "description": "Allow (or stop allowing) another Warpgate instance to join the cluster of this instance through admit-peer. The approval is bound to the module UUID of the peer",
+    "examples": [{"peer": "warpgate2", "allowed": true}],
+    "type": "object",
+    "required": ["peer", "allowed"],
+    "additionalProperties": false,
+    "properties": {
+        "peer": {"type": "string", "pattern": "^[a-z][a-z0-9_-]*[0-9]+$"},
+        "allowed": {"type": "boolean"}
+    }
+}

@@ -1,0 +1,51 @@
+#!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-or-later
+
+#
+# Warpgate cluster membership. "create": this instance owns the shared
+# database; "join": ask an approved peer (admit-peer, role wgpeer) for the
+# shared database name and key material. Members publish their HTTP
+# listener on the VPN address of their node for Warpgate's own peer
+# traffic (cluster TLS with the CA kept in the database).
+#
+
+import json
+import os
+import sys
+
+import agent
+import agent.tasks
+import warpgate_cluster as wc
+
+request = json.load(sys.stdin)
+cur = wc.settings()
+want = wc.requested(request, cur)
+rdb = agent.redis_connect(use_replica=True)
+mode = want["cluster_mode"]
+values = {"WARPGATE_CLUSTER_MODE": mode, "WARPGATE_CLUSTER_PEER": want["cluster_peer"] if mode == "join" else ""}
+
+if mode == "join":
+    peer = want["cluster_peer"]
+    ret = agent.tasks.run(agent_id=f"module/{peer}", action="admit-peer",
+                          data={"module_id": os.environ["MODULE_ID"]},
+                          extra={"isNotificationHidden": True})
+    out = ret.get("output")
+    if ret.get("exit_code") != 0 or not isinstance(out, dict):
+        code = "peer_unavailable"
+        if isinstance(out, list) and out and isinstance(out[0], dict):
+            code = out[0].get("error") or code
+        wc.fail(wc.ClusterError("cluster_peer", code, peer))
+    try:
+        wc.install_material(out)
+    except wc.ClusterError as error:
+        wc.fail(error)
+    values["WARPGATE_CLUSTER_DATABASE"] = out["database"]
+    values["WARPGATE_CLUSTER_DB_CLUSTER_ID"] = out["db_cluster_id"]
+    print(f"Joined the Warpgate cluster of {peer}", file=sys.stderr)
+else:
+    values["WARPGATE_CLUSTER_DATABASE"] = ""
+    values["WARPGATE_CLUSTER_DB_CLUSTER_ID"] = ""
+
+http_port = os.environ["TCP_PORTS"].split(",")[0]
+values["WARPGATE_CLUSTER_ARGS"] = wc.cluster_args(mode, wc.vpn_ip(rdb), http_port)
+agent.mset_env(values)

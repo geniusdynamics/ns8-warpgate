@@ -1,0 +1,32 @@
+#!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-or-later
+
+#
+# Another Warpgate instance joins the cluster of this instance (role
+# wgpeer, plus an approval with set-peer-access bound to the caller's
+# module UUID). Returns the shared database name and the shared key
+# material. The output goes to the calling instance only (NS8 keeps task
+# outputs under this module's task keys); it is never logged.
+#
+
+import json
+import os
+import sys
+
+import agent
+import warpgate_cluster as wc
+
+data = json.load(sys.stdin)
+rdb = agent.redis_connect(use_replica=True)
+cur = wc.settings()
+try:
+    peer = wc.authorize_peer(rdb, data["module_id"], os.environ.get("AGENT_TASK_USER", ""))
+    if cur["db_mode"] != "postgresql19c" or cur["cluster_mode"] == "standalone" or not cur["db_name"]:
+        raise wc.ClusterError("module_id", "not_a_cluster_member", data["module_id"])
+except wc.ClusterError as error:
+    wc.fail(error)
+
+output = {"database": cur["db_name"], "db_cluster_id": cur["db_cluster_id"]}
+output.update(wc.shared_material())
+print(f"{peer} admitted to the Warpgate cluster", file=sys.stderr)
+json.dump(output, fp=sys.stdout)

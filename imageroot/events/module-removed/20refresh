@@ -1,0 +1,15 @@
+#!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-or-later
+
+# The ns8-postgresql19c instance in use may be gone: use another endpoint
+# of the same PostgreSQL cluster
+import json
+import os
+import sys
+
+import warpgate_cluster as wc
+
+event = json.load(sys.stdin)
+if os.environ.get("WARPGATE_DB_MODE") == "postgresql19c" and \
+        event.get("module_id") == os.environ.get("WARPGATE_DB_PROVIDER"):
+    sys.exit(wc.follow_database_endpoint(removed=event["module_id"]))

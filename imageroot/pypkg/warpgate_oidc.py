@@ -262,8 +262,12 @@ def default_label(entry):
 def render(volume, host):
     source = volume / "warpgate.yaml"
     generated = volume / ".ns8-warpgate.yaml"
+    import warpgate_cluster
+
     settings = read_settings()
-    if not settings:
+    warpgate_cluster.install_tls_into_volume(volume)
+    database = os.environ.get("WARPGATE_DB_MODE") == "postgresql19c"
+    if not settings and not database:
         if not generated.is_symlink() or os.readlink(generated) != source.name:
             generated.unlink(missing_ok=True)
             generated.symlink_to(source.name)
@@ -278,6 +282,9 @@ def render(volume, host):
         config["external_host"] = host
         # Warpgate otherwise uses its container listener's port for the callback.
         config.setdefault("http", {})["external_port"] = 443
+        if database:
+            # No password here: Warpgate's driver reads PGPASSWORD
+            config["database_url"] = warpgate_cluster.database_url()
         config["sso_providers"] = providers
         for entry in settings:
             name = entry_name(entry)

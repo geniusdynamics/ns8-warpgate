@@ -1,0 +1,79 @@
+#!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-or-later
+
+#
+# Database mode. For "postgresql19c": get a database and credentials with
+# grant-database (role pgclient), keep the password in state/database.env
+# (0600) and the rest in the module environment. Switching from the
+# embedded SQLite database copies its data with "warpgate copy-database".
+#
+
+import json
+import os
+import sys
+
+import agent
+import warpgate_cluster as wc
+
+request = json.load(sys.stdin)
+cur = wc.settings()
+want = wc.requested(request, cur)
+
+if want["db_mode"] == "embedded":
+    agent.set_env("WARPGATE_DB_MODE", "embedded")
+    sys.exit(0)
+
+rdb = agent.redis_connect(use_replica=True)
+records = wc.pg_records(rdb)
+node_id = os.environ["NODE_ID"]
+joining = want["cluster_mode"] == "join"
+cluster_id = os.environ.get("WARPGATE_CLUSTER_DB_CLUSTER_ID", "") if joining else ""
+if not joining and cur["db_mode"] == "postgresql19c" and not want["db_instance"]:
+    cluster_id = cur["db_cluster_id"]
+record = wc.pick_record(records, node_id, cluster_id, want["db_instance"])
+if not record and cluster_id:
+    record = wc.pick_record(records, node_id, cluster_id)
+if not record:
+    wc.fail(wc.ClusterError("database_instance", "postgresql19c_instance_not_found", want["db_instance"]))
+
+if joining:
+    database = os.environ["WARPGATE_CLUSTER_DATABASE"]
+elif cur["db_mode"] == "postgresql19c" and cur["db_name"]:
+    database = cur["db_name"]
+else:
+    database = wc.database_name_for(os.environ["MODULE_ID"])
+
+regrant = (
+    cur["db_mode"] != "postgresql19c"
+    or not wc.database_password()
+    or cur["db_user"] != wc.database_name_for(os.environ["MODULE_ID"])
+    or cur["db_name"] != database
+    or cur["db_cluster_id"] != record["cluster_id"]
+    or bool(request.get("database", {}).get("rotate"))
+)
+values = {"WARPGATE_DB_MODE": "postgresql19c", "WARPGATE_DB_INSTANCE": want["db_instance"],
+          "WARPGATE_DB_PROVIDER": record["module_id"]}
+if regrant:
+    try:
+        out = wc.grant_database(record["module_id"], database)
+    except wc.ClusterError as error:
+        wc.fail(error)
+    values.update(wc.store_credentials(out, records, node_id))
+    print(f"Database {out['database']} granted by {record['module_id']}", file=sys.stderr)
+else:
+    endpoint = wc.local_endpoint(records, node_id, cur["db_cluster_id"]) or record
+    values.update({"WARPGATE_DB_HOST": endpoint["host"], "WARPGATE_DB_PORT": str(endpoint["port"])})
+
+migrate = cur["db_mode"] != "postgresql19c" and not joining
+if migrate:
+    # Fill an empty database from the SQLite one: create it first if this
+    # is a new installation (admin user, SSH host keys, defaults)
+    env = dict(os.environ, **{k: v for k, v in values.items()})
+    agent.run_helper("systemctl", "--user", "stop", "warpgate.service")
+    agent.run_helper("warpgate-setup").check_returncode()
+    if not wc.copy_sqlite_to_postgresql(env):
+        agent.mset_env(values | {"WARPGATE_DB_MODE": "embedded"})
+        wc.fail(wc.ClusterError("database_mode", "database_copy_failed", "postgresql19c"))
+    print("SQLite data copied to PostgreSQL", file=sys.stderr)
+
+agent.mset_env(values)

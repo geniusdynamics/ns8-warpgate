@@ -1,0 +1,15 @@
+#!/bin/bash
+# SPDX-License-Identifier: GPL-3.0-or-later
+
+# First-run setup of the data volume (warpgate.yaml, the SQLite database,
+# the admin user, SSH host keys, TLS certificate). A no-op if the
+# configuration already exists. The admin password reaches the container
+# through the environment, never the command line.
+set -euo pipefail
+set -a
+# shellcheck disable=SC1091
+source "${AGENT_STATE_DIR:?}/passwords.env"
+set +a
+exec podman run --rm --volume=data:/data:Z --env=WARPGATE_ADMIN_PASSWORD "${WARPGATE_IMAGE:?}" \
+    unattended-setup --data-path=/data --http-port=8888 --ssh-port=2222 --mysql-port=33306 \
+    --external-host="${TRAEFIK_HOST:?}" --if-config-exists=skip

@@ -1,0 +1,17 @@
+#!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-or-later
+
+# An owner action: the reader and wgpeer roles cannot change approvals
+
+import json
+import sys
+
+import agent
+import warpgate_cluster as wc
+
+data = json.load(sys.stdin)
+try:
+    wc.set_peer_access(agent.redis_connect(use_replica=True), data["peer"], data["allowed"])
+except wc.ClusterError as error:
+    wc.fail(error)
+json.dump({"peer": data["peer"], "allowed": data["allowed"]}, sys.stdout)

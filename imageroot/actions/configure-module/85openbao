@@ -1,0 +1,13 @@
+#!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-or-later
+
+# Mirror the secrets to OpenBao when it is enabled. Never fatal: the local
+# 0600 files stay the operational copy and the timer retries.
+import sys
+
+import agent
+import warpgate_cluster as wc
+
+failed = wc.push_secrets()
+if failed:
+    print(agent.SD_WARNING + "Not mirrored to OpenBao yet: " + ", ".join(failed), file=sys.stderr)

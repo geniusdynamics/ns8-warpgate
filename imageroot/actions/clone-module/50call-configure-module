@@ -13,5 +13,10 @@ configure_retval = agent.tasks.run(agent_id=os.environ['AGENT_ID'], action='conf
     "lets_encrypt": os.environ["TRAEFIK_LETS_ENCRYPT"] == "True",
     "host": os.environ["TRAEFIK_HOST"],
     "http2https": os.environ["TRAEFIK_HTTP2HTTPS"] == "True",
+    # A clone of a PostgreSQL-mode instance uses the same database
+    "database": {"mode": os.environ.get("WARPGATE_DB_MODE") or "embedded",
+                 "instance": os.environ.get("WARPGATE_DB_INSTANCE", "")},
+    "cluster": {"mode": "standalone" if os.environ.get("WARPGATE_CLUSTER_MODE", "standalone") == "standalone"
+                else "create"},
 })
 agent.assert_exp(configure_retval['exit_code'] == 0, "The configure-module subtask failed!")

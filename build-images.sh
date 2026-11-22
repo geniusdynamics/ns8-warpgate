@@ -49,7 +49,7 @@ buildah copy --from "$yaml_builder" "${container}" /deps/yaml /imageroot/pypkg/w
 buildah add "${container}" ui/dist /ui
 # Setup the entrypoint, reserve three TCP ports (web UI, SSH, MySQL) and set a rootless container
 buildah config --entrypoint=/ \
-	--label="org.nethserver.authorizations=traefik@node:routeadm cluster:accountconsumer idp@any:clientadm keycloak@any:clientadm lemonldapng@any:clientadm" \
+	--label="org.nethserver.authorizations=traefik@node:routeadm cluster:accountconsumer idp@any:clientadm keycloak@any:clientadm lemonldapng@any:clientadm postgresql19c@any:pgclient openbao@any:secretsclient warpgate@any:wgpeer" \
 	--label="org.nethserver.tcp-ports-demand=3" \
 	--label="org.nethserver.rootfull=0" \
     --label="org.nethserver.min-core=3.0.0" \

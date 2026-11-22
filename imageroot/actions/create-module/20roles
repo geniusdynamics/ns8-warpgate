@@ -1,0 +1,11 @@
+#!/bin/bash
+# SPDX-License-Identifier: GPL-3.0-or-later
+
+# Custom role wgpeer: other Warpgate instances (warpgate@any:wgpeer) may
+# ask to join the cluster of this instance. admit-peer is also gated by an
+# explicit approval (set-peer-access). Its name does not start with get-,
+# list-, show- or read-: the builtin reader role cannot run it.
+
+set -e
+exec 1>&2
+redis-exec SADD "${AGENT_ID}/roles/wgpeer" "admit-peer"

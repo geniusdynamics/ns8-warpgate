@@ -1,0 +1,64 @@
+#!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-or-later
+
+#
+# OpenBao (opt-in): a copy of Warpgate's secrets in a KV version 2 store.
+# The token is pasted by the administrator ("manual") or provisioned by
+# geniusdynamics/ns8-openbao ("provisioned", role secretsclient). The
+# address and token go to the 0600 file state/openbao.env, never to the
+# module environment, argv, logs or the task output.
+#
+
+import json
+import sys
+
+import agent
+import warpgate_cluster as wc
+
+request = json.load(sys.stdin)
+if "vault_enabled" not in request:
+    sys.exit(0)
+vs = wc.vault_settings()
+
+if not request["vault_enabled"]:
+    if vs["vault_enabled"]:
+        wc.remove(wc.state_dir() / wc.OPENBAO_ENV)
+    agent.set_env("WARPGATE_VAULT_ENABLED", "0")
+    sys.exit(0)
+
+mode = request.get("vault_mode") or "manual"
+try:
+    if mode == "provisioned":
+        openbao = request["vault_openbao"]
+        if (vs["vault_enabled"] and vs["vault_mode"] == "provisioned" and vs["vault_openbao"] == openbao
+                and vs["vault_token_set"] and not request.get("vault_reprovision")):
+            address, token = vs["vault_address"], wc.read_envfile(wc.state_dir() / wc.OPENBAO_ENV)["VAULT_TOKEN"]
+            mount, path = vs["vault_mount"], vs["vault_path"]
+        else:
+            address, token, mount, path = wc.provision(openbao)
+    else:
+        openbao = ""
+        env = wc.read_envfile(wc.state_dir() / wc.OPENBAO_ENV)
+        address = (request.get("vault_address") or vs["vault_address"]).rstrip("/")
+        token = request.get("vault_token") or env.get("VAULT_TOKEN", "")
+        mount = (request.get("vault_mount") or vs["vault_mount"]).strip("/")
+        path = (request.get("vault_path") or vs["vault_path"]).strip("/")
+    try:
+        wc.Vault(address, token, mount, path).get("database")
+    except wc.OpenBaoError as ex:
+        field = "vault_openbao" if mode == "provisioned" else "vault_token"
+        if ex.status in (401, 403):
+            raise wc.ClusterError(field, "openbao_denied") from None
+        raise wc.ClusterError("vault_openbao" if mode == "provisioned" else "vault_address",
+                              "openbao_unreachable") from None
+except wc.ClusterError as error:
+    wc.fail(error)
+
+wc.save_vault_env(address, token)
+agent.mset_env({
+    "WARPGATE_VAULT_ENABLED": "1",
+    "WARPGATE_VAULT_MODE": mode,
+    "WARPGATE_VAULT_OPENBAO": openbao,
+    "WARPGATE_VAULT_MOUNT": mount,
+    "WARPGATE_VAULT_PATH": path,
+})

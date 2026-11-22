@@ -19,5 +19,11 @@ response = agent.tasks.run(agent_id=os.environ["AGENT_ID"], action="configure-mo
     "host": renv["TRAEFIK_HOST"],
     "http2https": renv["TRAEFIK_HTTP2HTTPS"] == "True",
     "lets_encrypt": renv["TRAEFIK_LETS_ENCRYPT"] == "True",
+    # A restored member keeps using the shared database; peer approvals
+    # are not restored, so it serves as a cluster of its own
+    "database": {"mode": renv.get("WARPGATE_DB_MODE") or "embedded",
+                 "instance": renv.get("WARPGATE_DB_INSTANCE", "")},
+    "cluster": {"mode": "standalone" if renv.get("WARPGATE_CLUSTER_MODE", "standalone") == "standalone"
+                else "create"},
 })
 agent.assert_exp(response["exit_code"] == 0, "The configure-module subtask failed!")

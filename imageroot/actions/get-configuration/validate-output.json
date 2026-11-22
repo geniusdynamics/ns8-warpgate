@@ -125,6 +125,107 @@
                 },
                 "additionalProperties": false
             }
+        },
+        "database": {
+            "type": "object",
+            "required": [
+                "mode",
+                "password_set"
+            ],
+            "properties": {
+                "mode": {
+                    "enum": [
+                        "embedded",
+                        "postgresql19c"
+                    ]
+                },
+                "instance": {
+                    "type": "string"
+                },
+                "provider": {
+                    "type": "string"
+                },
+                "database": {
+                    "type": "string"
+                },
+                "host": {
+                    "type": "string"
+                },
+                "port": {
+                    "type": "integer"
+                },
+                "cluster_id": {
+                    "type": "string"
+                },
+                "password_set": {
+                    "type": "boolean"
+                }
+            }
+        },
+        "postgresql19c_instances": {
+            "type": "array",
+            "items": {
+                "type": "object"
+            }
+        },
+        "cluster": {
+            "type": "object",
+            "required": [
+                "mode"
+            ],
+            "properties": {
+                "mode": {
+                    "enum": [
+                        "standalone",
+                        "create",
+                        "join"
+                    ]
+                },
+                "peer": {
+                    "type": "string"
+                }
+            }
+        },
+        "peer_candidates": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "required": [
+                    "module_id",
+                    "node",
+                    "allowed"
+                ]
+            }
+        },
+        "vault_enabled": {
+            "type": "boolean"
+        },
+        "vault_mode": {
+            "enum": [
+                "manual",
+                "provisioned"
+            ]
+        },
+        "vault_openbao": {
+            "type": "string"
+        },
+        "vault_address": {
+            "type": "string"
+        },
+        "vault_token_set": {
+            "type": "boolean"
+        },
+        "vault_mount": {
+            "type": "string"
+        },
+        "vault_path": {
+            "type": "string"
+        },
+        "openbao_servers": {
+            "type": "array",
+            "items": {
+                "type": "object"
+            }
         }
     }
 }

@@ -1,0 +1,23 @@
+#!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-or-later
+
+# Validate the database, cluster and OpenBao settings before any change
+
+import json
+import os
+import sys
+
+import agent
+import warpgate_cluster as wc
+
+agent.set_weight(os.path.basename(__file__), 0)
+request = json.load(sys.stdin)
+cur = wc.settings()
+want = wc.requested(request, cur)
+records = []
+if want["db_mode"] == "postgresql19c":
+    records = wc.pg_records(agent.redis_connect(use_replica=True))
+try:
+    wc.validate(want, cur, records, request)
+except wc.ClusterError as error:
+    wc.fail(error)

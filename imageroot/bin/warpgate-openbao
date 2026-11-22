@@ -1,0 +1,52 @@
+#!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-or-later
+
+"""OpenBao maintenance: renew (or provision again) the token and mirror the
+local secrets. Run by warpgate-openbao.timer; never needed to start
+Warpgate, which reads only the local 0600 files."""
+
+import argparse
+import os
+import sys
+import time
+
+import agent
+import warpgate_cluster as wc
+
+RENEW_BEFORE = 5 * 24 * 3600     # provision again 5 days before the max TTL
+MAX_TTL = 30 * 24 * 3600
+
+parser = argparse.ArgumentParser(description=__doc__)
+parser.add_argument("action", choices=("renew", "push", "status"))
+args = parser.parse_args()
+
+vs = wc.vault_settings()
+if args.action == "status":
+    print("OpenBao: " + ("enabled (" + vs["vault_mode"] + ")" if vs["vault_enabled"] else "disabled"))
+    sys.exit(0)
+if not vs["vault_enabled"]:
+    sys.exit(0)
+
+if args.action == "renew":
+    env = wc.read_envfile(wc.state_dir() / wc.OPENBAO_ENV)
+    issued = int(env.get("VAULT_TOKEN_ISSUED") or 0)
+    lease = 0
+    try:
+        lease = wc.renew_token()
+    except wc.OpenBaoError as ex:
+        print(agent.SD_WARNING + f"OpenBao token renewal failed: {ex}", file=sys.stderr)
+    old = time.time() - issued > MAX_TTL - RENEW_BEFORE
+    if vs["vault_mode"] == "provisioned" and (old or 0 < lease < 3600 or lease == 0):
+        try:
+            address, token, mount, path = wc.provision(vs["vault_openbao"])
+        except wc.ClusterError as error:
+            print(agent.SD_ERR + f"OpenBao provisioning failed: {error.code}", file=sys.stderr)
+            sys.exit(1)
+        wc.save_vault_env(address, token)
+        agent.mset_env({"WARPGATE_VAULT_MOUNT": mount, "WARPGATE_VAULT_PATH": path})
+        os.environ.update({"WARPGATE_VAULT_MOUNT": mount, "WARPGATE_VAULT_PATH": path})
+        print("OpenBao token provisioned again", file=sys.stderr)
+
+failed = wc.push_secrets()
+if failed:
+    print(agent.SD_WARNING + "Not mirrored to OpenBao yet: " + ", ".join(failed), file=sys.stderr)

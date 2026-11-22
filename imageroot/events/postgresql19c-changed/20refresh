@@ -1,0 +1,9 @@
+#!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-or-later
+
+# An ns8-postgresql19c endpoint changed: follow it
+import sys
+
+import warpgate_cluster as wc
+
+sys.exit(wc.follow_database_endpoint())
