@@ -489,7 +489,7 @@ class SecretBackendTest(StateTestCase):
         method, path, body = api.writes()[0]
         self.assertEqual((method, path), ("POST", "/secret-backends"))
         self.assertEqual(body, {"name": "ns8-openbao", "backend_type": "openbao", "address": "http://10.5.4.1:20003",
-                                "namespace": None, "auth": {"method": "Token", "token": "module-token"},
+                                "auth": {"method": "Token", "token": "module-token"},
                                 "tls_skip_verify": False, "allowed_paths": ["ns8-kv/modules/warpgate1/targets"]})
         # Warpgate lists it with the token redacted: nothing to do
         api.backends = [dict(body, id="b-1", auth={"method": "Token", "token": ""})]

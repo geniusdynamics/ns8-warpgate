@@ -153,7 +153,6 @@ def backend_body(cur, address, token):
         "name": cur["name"],
         "backend_type": "openbao",
         "address": address,
-        "namespace": None,
         "auth": {"method": "Token", "token": token},
         "tls_skip_verify": False,
         "allowed_paths": [allowed_path(cur)],
