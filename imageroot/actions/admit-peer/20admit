@@ -5,7 +5,8 @@
 # Another Warpgate instance joins the cluster of this instance (role
 # wgpeer, plus an approval with set-peer-access bound to the caller's
 # module UUID). Returns the shared database name and the shared key
-# material. The output goes to the calling instance only (NS8 keeps task
+# material, plus the recordings storage settings (with the S3 secret key).
+# The output goes to the calling instance only (NS8 keeps task
 # outputs under this module's task keys); it is never logged.
 #
 
@@ -15,6 +16,7 @@ import sys
 
 import agent
 import warpgate_cluster as wc
+import warpgate_recordings
 
 data = json.load(sys.stdin)
 rdb = agent.redis_connect(use_replica=True)
@@ -28,5 +30,6 @@ except wc.ClusterError as error:
 
 output = {"database": cur["db_name"], "db_cluster_id": cur["db_cluster_id"]}
 output.update(wc.shared_material())
+output["recordings"] = warpgate_recordings.peer_material()
 print(f"{peer} admitted to the Warpgate cluster", file=sys.stderr)
 json.dump(output, fp=sys.stdout)

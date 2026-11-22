@@ -266,3 +266,141 @@ coordinate changes across all nodes and use the same primary key.
 `rotate --import-key` applies a previously agreed replacement key on
 each node. Warpgate delays re-encryption while running nodes still report
 a different primary key.
+
+### Session recordings storage
+
+Warpgate 0.30 keeps the recordings storage in its database
+(`parameters.recordings_storage`), not in `warpgate.yaml`. The **Session
+recordings storage** section of Settings offers:
+
+- **Local disk** (default, and what every existing installation keeps):
+  recordings stay in the `data` volume, which is part of the module backup.
+  The module does not touch Warpgate's own setting.
+- **S3-compatible bucket**: endpoint URL (empty for Amazon S3), region,
+  bucket, optional path prefix, path-style addressing (on by default, needed
+  by most S3-compatible services), access key ID and secret key. The
+  **Test connection** button sends a signed `HEAD` request to the bucket
+  from the node.
+
+Command line equivalent:
+
+```bash
+api-cli run module/warpgate1/configure-module --data '{"host": "warpgate.domain.com", "http2https": true, "lets_encrypt": false, "recordings": {"storage": "s3", "endpoint": "https://s3.example.org", "region": "us-east-1", "bucket": "warpgate-recordings", "prefix": "warpgate1", "path_style": true, "access_key_id": "AKIA...", "secret_access_key": "..."}}'
+api-cli run module/warpgate1/test-recordings-storage --data '{"endpoint": "https://s3.example.org", "region": "us-east-1", "bucket": "warpgate-recordings", "path_style": true, "access_key_id": "AKIA..."}'
+```
+
+An empty `secret_access_key` keeps the saved one when the access key ID does
+not change. A request without `recordings` keeps the current settings.
+
+How it works:
+
+- The module writes the storage with Warpgate's admin API
+  (`PUT /@warpgate/admin/api/parameters`), using the S3 fields of Warpgate
+  0.30.4 (`bucket`, `region`, `endpoint`, `path_style`, `prefix`,
+  `credentials`, `scratch_path`). To call the API it starts Warpgate with
+  `run --enable-admin-token` and a random `WARPGATE_ADMIN_TOKEN` kept in the
+  0600 file `state/admin-token.env`, only while a configuration change needs
+  it (and permanently with a managed secret backend). An instance that uses
+  none of these features starts exactly as before.
+- Credentials use Warpgate's `Auto` mode: the access key ID and secret key
+  reach the container as `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY`
+  from the 0600 file `state/s3.env` (backed up, and copied to OpenBao when
+  the OpenBao copy is enabled). The secret key is therefore neither in
+  `warpgate.yaml` nor in the database (Warpgate stores *Static* S3
+  credentials in clear text there). `get-configuration` only returns
+  `secret_access_key_set`. Every Warpgate feature that uses the ambient AWS
+  credentials sees these variables.
+- Recordings in progress are buffered in `/data/recordings-scratch` and
+  uploaded as they are written. Recordings on S3 are not part of the module
+  backup.
+- Browsers download finished recordings directly from the bucket through
+  presigned URLs. The endpoint must be reachable over HTTPS by the people
+  who replay recordings; plain HTTP is blocked as mixed content.
+- Warpgate 0.30 has no option to skip TLS verification of the endpoint: use
+  a certificate from a public authority.
+- Turning recording on or off stays in the Warpgate administration interface.
+
+Switching storage does not move recordings. Warpgate reads every finished
+recording from the storage selected at the time of the replay, with the
+same layout (`<prefix>/<session id>/<recording name>/...`) on disk and in the
+bucket. After switching to S3, earlier local recordings stay in the volume
+but cannot be replayed, unless you copy the content of the volume's
+`recordings` folder into the bucket under the prefix. After switching back to
+local disk, recordings in the bucket cannot be replayed.
+
+In a Warpgate cluster the storage is a setting of the shared database.
+A joining instance receives the S3 settings, secret key included, from its
+peer through `admit-peer`, like the other key material. The instance that
+created the cluster writes the setting. After changing it there, save the
+settings of each member again so it gets the new credentials. With local
+storage, Settings warns that a finished recording can be replayed only from
+the member that recorded it (live sessions are forwarded between members).
+
+### Warpgate secret backend
+
+Warpgate can resolve `secret://backend/mount/path#field` references (target
+credentials, SSH client keys, SSH certificate signing) against an OpenBao
+server. The **Warpgate secret backend** section offers:
+
+- **Off** (default): the module does nothing. Manage secret backends in
+  Warpgate's *Config > Secret backends* page yourself.
+- **Manual**: Settings shows the values to enter in Warpgate (type
+  `openbao`, address of the OpenBao instance over the VPN, allowed path, an
+  example reference) and the commands that create a read-only token for the
+  allowed path. The module neither shows nor stores a token.
+- **Managed**: needs the OpenBao section set to *Get access from an OpenBao
+  instance of this cluster* (ns8-openbao client provisioning, role
+  `openbao@any:secretsclient`). The module registers the backend with the
+  admin API (`/secret-backends`), with a token limited to
+  `<kv mount>/modules/<module id>/targets`, or to a shared group prefix
+  `<kv mount>/groups/<group>` that the OpenBao administrator approved for this
+  module. Warpgate renews the token daily; the `warpgate-openbao` timer gets
+  a new one before the 30 days maximum and gives it to Warpgate. In a
+  cluster, only members that did not join another instance manage the
+  backend, normally the instance that created the cluster.
+
+```bash
+api-cli run module/warpgate1/configure-module --data '{"host": "warpgate.domain.com", "http2https": true, "lets_encrypt": false, "secret_backend": {"mode": "manual", "name": "ns8-openbao"}}'
+```
+
+The module-scope token can also read the module's own copy of its secrets
+in OpenBao. Warpgate's allowed paths keep references away from it, but
+enable the database encryption key, so the token is stored encrypted, or use
+a group. Managed backends cannot sign SSH certificates: ns8-openbao client
+tokens only reach the KV store. Use a manually created backend for that.
+Switching from Managed to Off or Manual leaves the backend in Warpgate; its
+token is no longer refreshed and expires within 30 days.
+
+Recommendations:
+
+- Configure automatic or transit unseal for the OpenBao instance Warpgate
+  uses: a sealed OpenBao cannot serve credentials after a restart.
+- When an instance joins a cluster, sign in with the admin password of the
+  instance that created it: users live in the shared database.
+
+### What is encrypted where
+
+Encrypted in the Warpgate database by `WARPGATE_ENCRYPTION_KEY` (Warpgate
+0.30.4 `StoredSecret` fields): target credentials, Warpgate's internal SSH
+client keys, the SSH host keys and the authentication secrets of secret
+backends (token or AppRole secret ID).
+
+Not encrypted by that key: password and API token hashes (hashed), OTP
+secrets and LDAP bind passwords (stored as is in the database), and S3
+credentials entered as *Static* in Warpgate (the module uses *Auto*). OIDC
+client secrets are not in the database: the module keeps them in
+`state/oidc.json` (0600) and writes them into the generated configuration
+file. Warpgate 0.30 has no webhooks.
+
+What can live in OpenBao: target credentials and SSH client keys, through
+`secret://` references. The module's own copy in OpenBao (database password,
+encryption keyring, TLS key, OIDC and S3 secrets) is a backup copy: Warpgate
+always starts from the local files.
+
+## FAQ
+
+**Does Warpgate need Valkey or Redis?** No. Warpgate 0.30 neither uses nor
+proxies Valkey or Redis: its protocols are SSH, HTTPS, MySQL, PostgreSQL,
+Kubernetes, RDP and VNC, and it keeps its state in SQLite or PostgreSQL. The
+module talks to the NS8 cluster Redis only for its own settings, like every
+NS8 module.

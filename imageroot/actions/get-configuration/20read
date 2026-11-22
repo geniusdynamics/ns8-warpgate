@@ -12,6 +12,8 @@ import sys
 import agent
 import warpgate_cluster as wc
 import warpgate_oidc
+import warpgate_recordings
+import warpgate_secret_backend
 
 config = {
     "host": os.getenv("TRAEFIK_HOST", ""),
@@ -54,5 +56,20 @@ config["openbao_servers"] = sorted(
 )
 if config.get("vault_openbao"):
     config["openbao_client_status"] = wc.openbao_client_call(config["vault_openbao"], "get-client-status") or {}
+
+# Recordings storage: no secret key, only secret_access_key_set
+recordings = warpgate_recordings.settings()
+recordings["inherited_from"] = cur["cluster_peer"] if cur["cluster_mode"] == "join" else ""
+recordings["warnings"] = warpgate_recordings.warnings(recordings, cur["cluster_mode"])
+config["recordings"] = recordings
+
+# Warpgate secret backend: settings and the values to enter in Warpgate
+# (address, KV mount, allowed path, policy), never a token
+backend = warpgate_secret_backend.settings()
+backend["info"] = warpgate_secret_backend.info(backend)
+backend["warnings"] = warpgate_secret_backend.warnings(backend)
+status = config.get("openbao_client_status") or {}
+backend["groups"] = sorted(set(status.get("groups") or []) | set(wc.read_group_tokens()))
+config["secret_backend"] = backend
 
 json.dump(config, fp=sys.stdout)

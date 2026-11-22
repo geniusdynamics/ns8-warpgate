@@ -1,0 +1,27 @@
+#!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-or-later
+
+#
+# Check S3 settings before saving them: a signed HEAD request on the bucket
+# from this node (AWS Signature Version 4, Python standard library). A
+# blank secret key uses the saved one when the access key ID is the same.
+# The output holds a result code, never the secret.
+#
+
+import json
+import sys
+
+import warpgate_cluster as wc
+import warpgate_recordings
+
+request = json.load(sys.stdin)
+cur = warpgate_recordings.settings()
+want = warpgate_recordings.requested({"recordings": dict(request, storage="s3")}, cur)
+try:
+    warpgate_recordings.validate(want)
+except wc.ClusterError as error:
+    wc.fail(error)
+secret = want["secret_access_key"] or warpgate_recordings.secret_key()
+result = warpgate_recordings.test_bucket(want, secret)
+print(f"S3 bucket check: {result['error'] or 'ok'} ({result['status']})", file=sys.stderr)
+json.dump(result, sys.stdout)

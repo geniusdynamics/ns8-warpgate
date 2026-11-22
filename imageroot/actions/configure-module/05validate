@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-# Validate the database, cluster and OpenBao settings before any change
+# Validate the database, cluster, OpenBao, recordings storage and secret
+# backend settings before any change
 
 import json
 import os
@@ -9,6 +10,8 @@ import sys
 
 import agent
 import warpgate_cluster as wc
+import warpgate_recordings
+import warpgate_secret_backend
 
 agent.set_weight(os.path.basename(__file__), 0)
 request = json.load(sys.stdin)
@@ -19,5 +22,15 @@ if want["db_mode"] == "postgresql19c":
     records = wc.pg_records(agent.redis_connect(use_replica=True))
 try:
     wc.validate(want, cur, records, request)
+    if want["cluster_mode"] != "join":
+        # A joining member uses the recordings storage of its peer
+        warpgate_recordings.validate(warpgate_recordings.requested(request, warpgate_recordings.settings()))
+    vault = wc.vault_settings()
+    if "vault_enabled" in request:
+        vault = dict(vault, vault_enabled=bool(request["vault_enabled"]),
+                     vault_mode=request.get("vault_mode") or "manual")
+    warpgate_secret_backend.validate(
+        warpgate_secret_backend.requested(request, warpgate_secret_backend.settings()), vault,
+        want["cluster_mode"])
 except wc.ClusterError as error:
     wc.fail(error)

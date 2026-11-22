@@ -1,0 +1,13 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "title": "S3 recordings storage test result",
+    "$id": "http://nethserver.org/json-schema/task/output/warpgate/test-recordings-storage",
+    "type": "object",
+    "required": ["ok", "error", "status"],
+    "additionalProperties": false,
+    "properties": {
+        "ok": {"type": "boolean"},
+        "error": {"type": "string", "description": "Empty, or a code like s3_access_denied, s3_bucket_not_found, s3_wrong_region, s3_unreachable, s3_tls_error"},
+        "status": {"type": "integer", "description": "HTTP status of the HEAD request, 0 without an answer"}
+    }
+}

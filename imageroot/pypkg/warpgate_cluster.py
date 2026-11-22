@@ -46,6 +46,7 @@ PG_SERVICE = "postgresql19c"
 DATABASE_ENV = "database.env"
 ENCRYPTION_ENV = "encryption.env"
 OPENBAO_ENV = "openbao.env"
+OPENBAO_GROUPS = "openbao-groups.json"
 SHARED_TLS = "cluster-tls.json"
 PEER_GRANTS = "peer-access.json"
 MODULE_ID_RE = re.compile(r"^[a-z][a-z0-9_-]*[0-9]+$")
@@ -524,6 +525,7 @@ def provision(openbao_id):
     token = (unwrapped.get("auth") or {}).get("client_token")
     if not token:
         raise ClusterError("vault_openbao", "openbao_unwrap_failed", openbao_id)
+    save_group_tokens(address, out["wrap_creation_path"], out.get("groups"))
     max_ttl = out.get("token_explicit_max_ttl")
     if isinstance(max_ttl, int) and max_ttl > 0:
         agent_env = {"WARPGATE_VAULT_MAX_TTL": str(max_ttl)}
@@ -531,6 +533,42 @@ def provision(openbao_id):
         agent.mset_env(agent_env)
         os.environ.update(agent_env)
     return address, token, out["kv_mount"], out["kv_prefix"]
+
+
+def unwrap_checked(address, wrapped, creation_path):
+    """Check a wrapping token's creation path, then unwrap it. Returns the
+    client token or "" (never logged)."""
+    try:
+        info = bao_request(address, "sys/wrapping/lookup", "POST", data={"token": wrapped})
+        if (info.get("data") or {}).get("creation_path") != creation_path:
+            return ""
+        unwrapped = bao_request(address, "sys/wrapping/unwrap", "POST", token=wrapped)
+    except OpenBaoError:
+        return ""
+    return (unwrapped.get("auth") or {}).get("client_token") or ""
+
+
+def save_group_tokens(address, creation_path, groups):
+    """Tokens of the shared groups approved by the OpenBao administrator
+    (provision-client output "groups"), in the 0600 file
+    state/openbao-groups.json. A group that cannot be unwrapped is left out
+    (its wrapped token is single use)."""
+    tokens = {}
+    for group in groups if isinstance(groups, list) else []:
+        if not isinstance(group, dict) or not group.get("group_id") or not group.get("wrapped_token"):
+            continue
+        token = unwrap_checked(address, group["wrapped_token"], creation_path)
+        if token:
+            tokens[group["group_id"]] = {"token": token, "kv_prefix": group.get("kv_prefix", "")}
+    write_private(state_dir() / OPENBAO_GROUPS, json.dumps(tokens, sort_keys=True) + "\n")
+
+
+def read_group_tokens():
+    try:
+        value = json.loads((state_dir() / OPENBAO_GROUPS).read_text())
+    except (FileNotFoundError, ValueError):
+        return {}
+    return value if isinstance(value, dict) else {}
 
 
 def openbao_client_call(openbao_id, action):
@@ -547,12 +585,13 @@ def openbao_client_call(openbao_id, action):
     if ret.get("exit_code") != 0 or not isinstance(out, dict):
         return None
     return {key: out.get(key) for key in ("status", "ready", "client_provisioning", "address", "kv_mount",
-                                          "kv_prefix", "openbao_module_id")}
+                                          "kv_prefix", "openbao_module_id", "groups", "groups_requested")}
 
 
-def save_vault_env(address, token):
+def save_vault_env(address, token, issued=None):
+    """issued: when the token was issued (keep it for a token in use)"""
     write_envfile(state_dir() / OPENBAO_ENV, {"VAULT_ADDR": address, "VAULT_TOKEN": token,
-                                              "VAULT_TOKEN_ISSUED": str(int(time.time()))})
+                                              "VAULT_TOKEN_ISSUED": str(int(issued or time.time()))})
 
 
 def secret_items():
@@ -578,6 +617,10 @@ def secret_items():
                for e in oidc if isinstance(e, dict) and e.get("secret")}
     if secrets:
         items["oidc"] = json.dumps(secrets, sort_keys=True)
+    s3 = read_envfile(state_dir() / "s3.env")
+    if s3.get("AWS_SECRET_ACCESS_KEY"):
+        items["s3"] = json.dumps({"access_key_id": s3.get("AWS_ACCESS_KEY_ID", ""),
+                                  "secret_access_key": s3["AWS_SECRET_ACCESS_KEY"]}, sort_keys=True)
     return items
 
 
