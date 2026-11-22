@@ -108,6 +108,16 @@ Second instance joins and shares the database and host key
     ${key2} =    Warpgate admin API    ${wg2}    ${HOST2}    GET    /ssh/own-keys
     Should Be Equal    ${key1}    ${key2}
 
+Cluster members with local recordings get a warning
+    ${out} =    Run node command    api-cli run module/${wg1}/get-configuration
+    ${rec} =    Evaluate    json.loads($out)["recordings"]    json
+    Should Be Equal    ${rec}[storage]    local
+    List Should Contain Value    ${rec}[warnings]    cluster_local_recordings
+    ${out} =    Run node command    api-cli run module/${wg2}/get-configuration
+    ${rec} =    Evaluate    json.loads($out)["recordings"]    json
+    Should Be Equal    ${rec}[inherited_from]    ${wg1}
+    List Should Contain Value    ${rec}[warnings]    cluster_local_recordings
+
 An unapproved instance cannot join
     ${out}    ${rc} =    Execute Command    api-cli run module/${wg1}/admit-peer --data '{"module_id":"${pg_id}"}'    return_rc=True
     Should Not Be Equal As Integers    ${rc}    0

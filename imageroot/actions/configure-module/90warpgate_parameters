@@ -1,0 +1,40 @@
+#!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-or-later
+
+#
+# Write the recordings storage and the managed secret backend into
+# Warpgate's database with its admin API, now that Warpgate runs with the
+# admin token. Nothing happens for an instance that uses neither: Warpgate
+# keeps its own settings.
+#
+
+import sys
+
+import agent
+import warpgate_api
+import warpgate_cluster as wc
+import warpgate_recordings
+import warpgate_secret_backend
+
+cluster_mode = wc.settings()["cluster_mode"]
+if not (warpgate_recordings.needs_admin_api(cluster_mode=cluster_mode)
+        or warpgate_secret_backend.needs_admin_api(cluster_mode=cluster_mode)):
+    sys.exit(0)
+
+try:
+    warpgate_api.wait_ready()
+    if warpgate_recordings.apply(warpgate_api, cluster_mode):
+        print("Recordings storage updated in Warpgate", file=sys.stderr)
+    if warpgate_secret_backend.apply(warpgate_api, cluster_mode, force=True):
+        print("Warpgate secret backend registered", file=sys.stderr)
+except warpgate_api.ApiError as ex:
+    print(agent.SD_ERR + f"Cannot apply the Warpgate settings: {ex}", file=sys.stderr)
+    sys.exit(1)
+except wc.ClusterError as error:
+    print(agent.SD_ERR + f"Cannot register the Warpgate secret backend: {error.code}", file=sys.stderr)
+    sys.exit(1)
+
+# Afterwards only a managed secret backend needs the token (the timer
+# pushes each new OpenBao token): otherwise the next start drops the flag
+enabled = warpgate_secret_backend.needs_admin_api(cluster_mode=cluster_mode)
+agent.set_env("WARPGATE_RUN_ARGS", warpgate_api.run_args(enabled))

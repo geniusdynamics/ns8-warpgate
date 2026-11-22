@@ -24,6 +24,25 @@
             "vault_enabled": true,
             "vault_mode": "provisioned",
             "vault_openbao": "openbao1"
+        },
+        {
+            "host": "warpgate.domain.org",
+            "http2https": true,
+            "lets_encrypt": false,
+            "recordings": {
+                "storage": "s3",
+                "endpoint": "https://s3.example.org",
+                "region": "us-east-1",
+                "bucket": "warpgate-recordings",
+                "prefix": "warpgate1",
+                "path_style": true,
+                "access_key_id": "AKIAEXAMPLE",
+                "secret_access_key": "example-secret"
+            },
+            "secret_backend": {
+                "mode": "manual",
+                "name": "ns8-openbao"
+            }
         }
     ],
     "type": "object",
@@ -203,6 +222,87 @@
         "vault_path": {
             "type": "string",
             "pattern": "^[A-Za-z0-9_./-]*$"
+        },
+        "recordings": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+                "storage"
+            ],
+            "description": "Session recordings storage: local disk (default) or an S3-compatible bucket. Missing fields keep their values",
+            "properties": {
+                "storage": {
+                    "enum": [
+                        "local",
+                        "s3"
+                    ]
+                },
+                "endpoint": {
+                    "type": "string",
+                    "maxLength": 300,
+                    "description": "S3 endpoint URL, like 'https://s3.example.org:9000'. Empty for AWS S3"
+                },
+                "region": {
+                    "type": "string",
+                    "maxLength": 63
+                },
+                "bucket": {
+                    "type": "string",
+                    "maxLength": 63
+                },
+                "prefix": {
+                    "type": "string",
+                    "maxLength": 512,
+                    "description": "Key prefix of the recordings (optional)"
+                },
+                "path_style": {
+                    "type": "boolean",
+                    "description": "Path-style addressing (host/bucket/key), needed by most S3-compatible services"
+                },
+                "access_key_id": {
+                    "type": "string",
+                    "maxLength": 128
+                },
+                "secret_access_key": {
+                    "type": "string",
+                    "maxLength": 256,
+                    "writeOnly": true,
+                    "description": "Empty keeps the saved secret key (same access key ID)"
+                }
+            }
+        },
+        "secret_backend": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+                "mode"
+            ],
+            "description": "Warpgate's own OpenBao secret backend: off (default, manage it in Warpgate), manual (show the values to enter) or managed (registered with the admin API, token from ns8-openbao)",
+            "properties": {
+                "mode": {
+                    "enum": [
+                        "off",
+                        "manual",
+                        "managed"
+                    ]
+                },
+                "name": {
+                    "type": "string",
+                    "maxLength": 64,
+                    "description": "Backend name used in secret:// references"
+                },
+                "scope": {
+                    "enum": [
+                        "module",
+                        "group"
+                    ],
+                    "description": "Token of this module's OpenBao prefix, or of a shared group approved in OpenBao"
+                },
+                "group": {
+                    "type": "string",
+                    "maxLength": 64
+                }
+            }
         }
     }
 }

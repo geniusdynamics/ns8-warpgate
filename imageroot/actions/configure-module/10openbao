@@ -23,17 +23,21 @@ vs = wc.vault_settings()
 if not request["vault_enabled"]:
     if vs["vault_enabled"]:
         wc.remove(wc.state_dir() / wc.OPENBAO_ENV)
+        wc.remove(wc.state_dir() / wc.OPENBAO_GROUPS)
     agent.set_env("WARPGATE_VAULT_ENABLED", "0")
     sys.exit(0)
 
 mode = request.get("vault_mode") or "manual"
+issued = None
 try:
     if mode == "provisioned":
         openbao = request["vault_openbao"]
         if (vs["vault_enabled"] and vs["vault_mode"] == "provisioned" and vs["vault_openbao"] == openbao
                 and vs["vault_token_set"] and not request.get("vault_reprovision")):
-            address, token = vs["vault_address"], wc.read_envfile(wc.state_dir() / wc.OPENBAO_ENV)["VAULT_TOKEN"]
+            saved = wc.read_envfile(wc.state_dir() / wc.OPENBAO_ENV)
+            address, token = vs["vault_address"], saved["VAULT_TOKEN"]
             mount, path = vs["vault_mount"], vs["vault_path"]
+            issued = saved.get("VAULT_TOKEN_ISSUED")
         else:
             address, token, mount, path = wc.provision(openbao)
     else:
@@ -41,6 +45,8 @@ try:
         env = wc.read_envfile(wc.state_dir() / wc.OPENBAO_ENV)
         address = (request.get("vault_address") or vs["vault_address"]).rstrip("/")
         token = request.get("vault_token") or env.get("VAULT_TOKEN", "")
+        if not request.get("vault_token"):
+            issued = env.get("VAULT_TOKEN_ISSUED")
         mount = (request.get("vault_mount") or vs["vault_mount"]).strip("/")
         path = (request.get("vault_path") or vs["vault_path"]).strip("/")
     try:
@@ -54,7 +60,9 @@ try:
 except wc.ClusterError as error:
     wc.fail(error)
 
-wc.save_vault_env(address, token)
+wc.save_vault_env(address, token, issued)
+if mode != "provisioned":
+    wc.remove(wc.state_dir() / wc.OPENBAO_GROUPS)
 agent.mset_env({
     "WARPGATE_VAULT_ENABLED": "1",
     "WARPGATE_VAULT_MODE": mode,

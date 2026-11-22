@@ -18,6 +18,12 @@ EnvironmentFile=-%E/state/passwords.env
 EnvironmentFile=-%E/state/encryption.env
 # PGPASSWORD of the external PostgreSQL database (secret, mode 0600)
 EnvironmentFile=-%E/state/database.env
+# AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY of the S3 recordings storage
+# (secret, mode 0600; Warpgate reads them with its "Auto" credentials)
+EnvironmentFile=-%E/state/s3.env
+# WARPGATE_ADMIN_TOKEN, used only with WARPGATE_RUN_ARGS=--enable-admin-token
+# (secret, mode 0600)
+EnvironmentFile=-%E/state/admin-token.env
 WorkingDirectory=%E/state
 Restart=always
 TimeoutStopSec=70
@@ -47,13 +53,16 @@ ExecStart=/usr/bin/podman run \
     --env=WARPGATE_ENCRYPTION_KEY \
     --env=WARPGATE_ENCRYPTION_KEY_OLD \
     --env=PGPASSWORD \
+    --env=AWS_ACCESS_KEY_ID \
+    --env=AWS_SECRET_ACCESS_KEY \
+    --env=WARPGATE_ADMIN_TOKEN \
     --volume=data:/data:Z \
     --publish=127.0.0.1:${TCP_PORT_HTTP}:8888 \
     $WARPGATE_CLUSTER_ARGS \
     --publish=${TCP_PORT_SSH}:2222 \
     --publish=${TCP_PORT_MYSQL}:33306 \
     ${WARPGATE_IMAGE} \
-    --config /data/.ns8-warpgate.yaml run
+    --config /data/.ns8-warpgate.yaml run $WARPGATE_RUN_ARGS
 ExecStop=/usr/bin/podman stop --ignore --cidfile %t/warpgate.ctr-id -t 10
 ExecStopPost=/usr/bin/podman rm --ignore -f --cidfile %t/warpgate.ctr-id
 PIDFile=%t/warpgate.pid

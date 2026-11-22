@@ -4,9 +4,10 @@
 #
 # Warpgate cluster membership. "create": this instance owns the shared
 # database; "join": ask an approved peer (admit-peer, role wgpeer) for the
-# shared database name and key material. Members publish their HTTP
-# listener on the VPN address of their node for Warpgate's own peer
-# traffic (cluster TLS with the CA kept in the database).
+# shared database name, key material and recordings storage settings.
+# Members publish their HTTP listener on the VPN address of their node for
+# Warpgate's own peer traffic (cluster TLS with the CA kept in the
+# database).
 #
 
 import json
@@ -16,6 +17,7 @@ import sys
 import agent
 import agent.tasks
 import warpgate_cluster as wc
+import warpgate_recordings
 
 request = json.load(sys.stdin)
 cur = wc.settings()
@@ -37,6 +39,9 @@ if mode == "join":
         wc.fail(wc.ClusterError("cluster_peer", code, peer))
     try:
         wc.install_material(out)
+        # The recordings storage is a setting of the shared database: use
+        # the peer's (an older peer release sends none: keep ours)
+        warpgate_recordings.install_from_peer(out.get("recordings"))
     except wc.ClusterError as error:
         wc.fail(error)
     values["WARPGATE_CLUSTER_DATABASE"] = out["database"]
