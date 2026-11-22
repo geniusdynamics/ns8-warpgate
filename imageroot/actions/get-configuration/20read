@@ -52,5 +52,7 @@ config["openbao_servers"] = sorted(
      if wc.image_name_of(rdb.hget(f"module/{module_id}/environment", "IMAGE_URL")) == "openbao"),
     key=lambda item: item["module_id"],
 )
+if config.get("vault_openbao"):
+    config["openbao_client_status"] = wc.openbao_client_call(config["vault_openbao"], "get-client-status") or {}
 
 json.dump(config, fp=sys.stdout)

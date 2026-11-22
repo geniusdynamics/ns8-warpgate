@@ -1,0 +1,11 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "title": "Request OpenBao access",
+    "$id": "http://nethserver.org/json-schema/task/input/warpgate/request-openbao-access",
+    "description": "Ask an ns8-openbao instance for client access; its administrator approves it",
+    "examples": [{"openbao": "openbao1"}],
+    "type": "object",
+    "required": ["openbao"],
+    "additionalProperties": false,
+    "properties": {"openbao": {"type": "string", "pattern": "^[a-z][a-z0-9_-]*[0-9]+$"}}
+}
