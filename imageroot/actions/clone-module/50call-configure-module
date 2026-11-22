@@ -18,5 +18,11 @@ configure_retval = agent.tasks.run(agent_id=os.environ['AGENT_ID'], action='conf
                  "instance": os.environ.get("WARPGATE_DB_INSTANCE", "")},
     "cluster": {"mode": "standalone" if os.environ.get("WARPGATE_CLUSTER_MODE", "standalone") == "standalone"
                 else "create"},
+    # The copied environment and state/s3.env keep the recordings storage;
+    # a managed secret backend needs a new OpenBao approval for the clone
+    "secret_backend": {
+        "mode": "manual" if os.environ.get("WARPGATE_SECRET_BACKEND_MODE") == "managed"
+        else os.environ.get("WARPGATE_SECRET_BACKEND_MODE") or "off",
+    },
 })
 agent.assert_exp(configure_retval['exit_code'] == 0, "The configure-module subtask failed!")

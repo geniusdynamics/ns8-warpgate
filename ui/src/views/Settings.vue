@@ -338,6 +338,14 @@
                   >{{ peer.ui_name || peer.module_id }}</cv-select-option
                 >
               </cv-select>
+              <NsInlineNotification
+                v-if="clusterMode === 'join'"
+                kind="info"
+                :title="$t('settings.cluster_join_password_title')"
+                :description="$t('settings.cluster_join_password')"
+                :showCloseButton="false"
+                class="mg-bottom"
+              />
               <template
                 v-if="clusterMode === 'create' && peerCandidates.length"
               >
@@ -395,8 +403,161 @@
               />
             </div>
             <div class="mg-bottom">
+              <h3>{{ $t("settings.recordings_title") }}</h3>
+              <p class="mg-bottom">{{ $t("settings.recordings_help") }}</p>
+              <NsInlineNotification
+                v-if="recordingsInherited"
+                kind="info"
+                :description="
+                  $t('settings.recordings_inherited', {
+                    peer: recordings.inherited_from || clusterPeer,
+                  })
+                "
+                :showCloseButton="false"
+                class="mg-bottom"
+              />
+              <cv-radio-group vertical class="mg-bottom">
+                <cv-radio-button
+                  v-model="recordings.storage"
+                  value="local"
+                  :label="$t('settings.recordings_local')"
+                  :disabled="busy || recordingsInherited"
+                />
+                <cv-radio-button
+                  v-model="recordings.storage"
+                  value="s3"
+                  :label="$t('settings.recordings_s3')"
+                  :disabled="busy || recordingsInherited"
+                />
+              </cv-radio-group>
+              <NsInlineNotification
+                v-if="
+                  recordings.storage === 'local' && clusterMode !== 'standalone'
+                "
+                kind="warning"
+                :title="$t('settings.recordings_cluster_local_title')"
+                :description="$t('settings.recordings_cluster_local')"
+                :showCloseButton="false"
+                class="mg-bottom"
+              />
+              <template v-if="recordings.storage === 's3'">
+                <NsTextInput
+                  v-model.trim="recordings.endpoint"
+                  :label="$t('settings.recordings_endpoint')"
+                  placeholder="https://s3.example.org"
+                  :helper-text="$t('settings.recordings_endpoint_help')"
+                  :invalid-message="error.recordings_endpoint"
+                  :disabled="busy || recordingsInherited"
+                  ref="recordings_endpoint"
+                  class="mg-bottom"
+                />
+                <NsTextInput
+                  v-model.trim="recordings.region"
+                  :label="$t('settings.recordings_region')"
+                  placeholder="us-east-1"
+                  :invalid-message="error.recordings_region"
+                  :disabled="busy || recordingsInherited"
+                  ref="recordings_region"
+                  class="mg-bottom"
+                />
+                <NsTextInput
+                  v-model.trim="recordings.bucket"
+                  :label="$t('settings.recordings_bucket')"
+                  :invalid-message="error.recordings_bucket"
+                  :disabled="busy || recordingsInherited"
+                  ref="recordings_bucket"
+                  class="mg-bottom"
+                />
+                <NsTextInput
+                  v-model.trim="recordings.prefix"
+                  :label="$t('settings.recordings_prefix')"
+                  :helper-text="$t('settings.recordings_prefix_help')"
+                  :invalid-message="error.recordings_prefix"
+                  :disabled="busy || recordingsInherited"
+                  ref="recordings_prefix"
+                  class="mg-bottom"
+                />
+                <NsToggle
+                  value="recordingsPathStyle"
+                  :label="$t('settings.recordings_path_style')"
+                  v-model="recordings.path_style"
+                  :disabled="busy || recordingsInherited"
+                  class="mg-bottom"
+                >
+                  <template slot="text-left">{{
+                    $t("settings.disabled")
+                  }}</template>
+                  <template slot="text-right">{{
+                    $t("settings.enabled")
+                  }}</template>
+                </NsToggle>
+                <NsTextInput
+                  v-model.trim="recordings.access_key_id"
+                  :label="$t('settings.recordings_access_key_id')"
+                  :invalid-message="error.recordings_access_key_id"
+                  :disabled="busy || recordingsInherited"
+                  ref="recordings_access_key_id"
+                  class="mg-bottom"
+                />
+                <NsTextInput
+                  v-model="recordings.secret_access_key"
+                  type="password"
+                  autocomplete="new-password"
+                  :password-show-label="$t('settings.oidc_show_secret')"
+                  :password-hide-label="$t('settings.oidc_hide_secret')"
+                  :label="$t('settings.recordings_secret_access_key')"
+                  :helper-text="
+                    keepsS3Secret ? $t('settings.recordings_keep_secret') : ''
+                  "
+                  :invalid-message="error.recordings_secret_access_key"
+                  :disabled="busy || recordingsInherited"
+                  ref="recordings_secret_access_key"
+                  class="mg-bottom"
+                />
+                <NsInlineNotification
+                  v-if="recordings.endpoint.startsWith('http://')"
+                  kind="warning"
+                  :description="$t('settings.recordings_http_endpoint')"
+                  :showCloseButton="false"
+                  class="mg-bottom"
+                />
+                <p class="mg-bottom">
+                  {{ $t("settings.recordings_s3_notes") }}
+                </p>
+                <NsButton
+                  type="button"
+                  kind="secondary"
+                  size="small"
+                  class="mg-bottom"
+                  :loading="loading.testStorage"
+                  :disabled="busy || loading.testStorage || recordingsInherited"
+                  @click="testRecordingsStorage"
+                  >{{ $t("settings.recordings_test") }}</NsButton
+                >
+                <NsInlineNotification
+                  v-if="storageTest"
+                  :kind="storageTest.ok ? 'success' : 'error'"
+                  :description="
+                    storageTest.ok
+                      ? $t('settings.recordings_test_ok')
+                      : $t('settings.' + storageTest.error)
+                  "
+                  :showCloseButton="false"
+                  class="mg-bottom"
+                />
+              </template>
+              <p class="mg-bottom">{{ $t("settings.recordings_migration") }}</p>
+            </div>
+            <div class="mg-bottom">
               <h3>{{ $t("settings.vault_title") }}</h3>
               <p class="mg-bottom">{{ $t("settings.vault_help") }}</p>
+              <NsInlineNotification
+                kind="info"
+                :title="$t('settings.vault_unseal_title')"
+                :description="$t('settings.vault_unseal')"
+                :showCloseButton="false"
+                class="mg-bottom"
+              />
               <NsToggle
                 value="vaultEnabled"
                 :label="$t('settings.vault_enabled')"
@@ -494,6 +655,128 @@
                 class="mg-bottom"
               />
             </div>
+            <div class="mg-bottom">
+              <h3>{{ $t("settings.secret_backend_title") }}</h3>
+              <p class="mg-bottom">{{ $t("settings.secret_backend_help") }}</p>
+              <cv-radio-group vertical class="mg-bottom">
+                <cv-radio-button
+                  v-model="secretBackend.mode"
+                  value="off"
+                  :label="$t('settings.secret_backend_off')"
+                  :disabled="busy"
+                />
+                <cv-radio-button
+                  v-model="secretBackend.mode"
+                  value="manual"
+                  :label="$t('settings.secret_backend_manual')"
+                  :disabled="busy"
+                />
+                <cv-radio-button
+                  v-model="secretBackend.mode"
+                  value="managed"
+                  :label="$t('settings.secret_backend_managed')"
+                  :disabled="busy || !canManageBackend"
+                />
+              </cv-radio-group>
+              <p v-if="!canManageBackend" class="mg-bottom">
+                {{
+                  clusterMode === "join"
+                    ? $t("settings.secret_backend_managed_by_creator")
+                    : $t("settings.secret_backend_requires_provisioning")
+                }}
+              </p>
+              <NsInlineNotification
+                v-if="error.secret_backend"
+                kind="error"
+                :description="error.secret_backend"
+                :showCloseButton="false"
+                class="mg-bottom"
+              />
+              <template v-if="secretBackend.mode !== 'off'">
+                <NsTextInput
+                  v-model.trim="secretBackend.name"
+                  :label="$t('settings.secret_backend_name')"
+                  :invalid-message="error.secret_backend_name"
+                  :disabled="busy"
+                  ref="secret_backend_name"
+                  class="mg-bottom"
+                />
+                <cv-radio-group vertical class="mg-bottom">
+                  <cv-radio-button
+                    v-model="secretBackend.scope"
+                    value="module"
+                    :label="$t('settings.secret_backend_scope_module')"
+                    :disabled="busy"
+                  />
+                  <cv-radio-button
+                    v-model="secretBackend.scope"
+                    value="group"
+                    :label="$t('settings.secret_backend_scope_group')"
+                    :disabled="busy"
+                  />
+                </cv-radio-group>
+                <NsTextInput
+                  v-if="secretBackend.scope === 'group'"
+                  v-model.trim="secretBackend.group"
+                  :label="$t('settings.secret_backend_group')"
+                  :helper-text="
+                    secretBackend.groups.length
+                      ? $t('settings.secret_backend_groups_approved', {
+                          groups: secretBackend.groups.join(', '),
+                        })
+                      : $t('settings.secret_backend_group_help')
+                  "
+                  :invalid-message="error.secret_backend_group"
+                  :disabled="busy"
+                  ref="secret_backend_group"
+                  class="mg-bottom"
+                />
+                <NsInlineNotification
+                  v-if="
+                    secretBackend.mode === 'managed' &&
+                    secretBackend.scope === 'module'
+                  "
+                  kind="warning"
+                  :description="$t('settings.secret_backend_module_scope')"
+                  :showCloseButton="false"
+                  class="mg-bottom"
+                />
+                <template v-if="secretBackend.mode === 'manual'">
+                  <p class="mg-bottom">
+                    {{ $t("settings.secret_backend_manual_steps") }}
+                  </p>
+                  <cv-structured-list class="mg-bottom">
+                    <template slot="items">
+                      <cv-structured-list-item
+                        v-for="item in backendInfoItems"
+                        :key="item.key"
+                      >
+                        <cv-structured-list-data>{{
+                          $t("settings.secret_backend_info_" + item.key)
+                        }}</cv-structured-list-data>
+                        <cv-structured-list-data>{{
+                          item.value
+                        }}</cv-structured-list-data>
+                      </cv-structured-list-item>
+                    </template>
+                  </cv-structured-list>
+                  <p class="mg-bottom">
+                    {{ $t("settings.secret_backend_token_steps") }}
+                  </p>
+                  <NsCodeSnippet
+                    v-if="secretBackend.info.policy"
+                    :copyTooltip="$t('settings.copy_to_clipboard')"
+                    :copyFeedback="$t('settings.copied_to_clipboard')"
+                    :feedback-aria-label="$t('settings.copied_to_clipboard')"
+                    :wrap-text="true"
+                    :moreText="$t('settings.show_more')"
+                    :lessText="$t('settings.show_less')"
+                    class="mg-bottom"
+                    >{{ tokenCommands }}</NsCodeSnippet
+                  >
+                </template>
+              </template>
+            </div>
             <cv-row v-if="error.configureModule">
               <cv-column>
                 <NsInlineNotification
@@ -573,11 +856,33 @@ export default {
       vaultTokenSet: false,
       openbaoServers: [],
       openbaoStatus: {},
+      recordings: {
+        storage: "local",
+        endpoint: "",
+        region: "",
+        bucket: "",
+        prefix: "",
+        path_style: true,
+        access_key_id: "",
+        secret_access_key: "",
+        inherited_from: "",
+      },
+      savedRecordings: {},
+      storageTest: null,
+      secretBackend: {
+        mode: "off",
+        name: "ns8-openbao",
+        scope: "module",
+        group: "",
+        groups: [],
+        info: {},
+      },
       loading: {
         getConfiguration: false,
         configureModule: false,
         peer: "",
         requestAccess: false,
+        testStorage: false,
       },
       error: {
         getConfiguration: "",
@@ -593,6 +898,15 @@ export default {
         vault_openbao: "",
         vault_address: "",
         vault_token: "",
+        recordings_endpoint: "",
+        recordings_region: "",
+        recordings_bucket: "",
+        recordings_prefix: "",
+        recordings_access_key_id: "",
+        recordings_secret_access_key: "",
+        secret_backend: "",
+        secret_backend_name: "",
+        secret_backend_group: "",
       },
     };
   },
@@ -606,6 +920,48 @@ export default {
     },
     manualEntries() {
       return this.oidcEntries.filter(({ mode }) => mode === "manual");
+    },
+    recordingsInherited() {
+      return this.clusterMode === "join";
+    },
+    keepsS3Secret() {
+      return (
+        this.savedRecordings.secret_access_key_set &&
+        this.savedRecordings.access_key_id === this.recordings.access_key_id
+      );
+    },
+    canManageBackend() {
+      return (
+        this.clusterMode !== "join" &&
+        this.vaultEnabled &&
+        this.vaultMode === "provisioned"
+      );
+    },
+    backendInfoItems() {
+      const info = this.secretBackend.info || {};
+      return [
+        "name",
+        "backend_type",
+        "address",
+        "allowed_path",
+        "reference_example",
+      ]
+        .filter((key) => key === "name" || info[key] !== undefined)
+        .map((key) => ({
+          key,
+          value:
+            key === "name"
+              ? this.secretBackend.name
+              : info[key] || this.$t("settings.secret_backend_info_unknown"),
+        }));
+    },
+    tokenCommands() {
+      const policy = (this.secretBackend.info.policy || "").trim();
+      return (
+        `cat > warpgate-targets.hcl <<'EOF'\n${policy}\nEOF\n` +
+        "bao policy write warpgate-targets warpgate-targets.hcl\n" +
+        "bao token create -orphan -period=24h -policy=warpgate-targets"
+      );
     },
   },
   created() {
@@ -695,6 +1051,29 @@ export default {
       this.vaultTokenSet = Boolean(config.vault_token_set);
       this.openbaoServers = config.openbao_servers || [];
       this.openbaoStatus = config.openbao_client_status || {};
+      const rec = config.recordings || {};
+      this.savedRecordings = rec;
+      this.recordings = {
+        storage: rec.storage || "local",
+        endpoint: rec.endpoint || "",
+        region: rec.region || "",
+        bucket: rec.bucket || "",
+        prefix: rec.prefix || "",
+        path_style: rec.path_style !== false,
+        access_key_id: rec.access_key_id || "",
+        secret_access_key: "",
+        inherited_from: rec.inherited_from || "",
+      };
+      this.storageTest = null;
+      const sb = config.secret_backend || {};
+      this.secretBackend = {
+        mode: sb.mode || "off",
+        name: sb.name || "ns8-openbao",
+        scope: sb.scope || "module",
+        group: sb.group || "",
+        groups: sb.groups || [],
+        info: sb.info || {},
+      };
 
       this.loading.getConfiguration = false;
       this.focusElement("host");
@@ -771,11 +1150,33 @@ export default {
         if (!this.vaultToken && !this.vaultTokenSet)
           this.error.vault_token = this.$t("common.required");
       }
+      if (this.recordings.storage === "s3" && !this.recordingsInherited) {
+        for (const field of ["region", "bucket", "access_key_id"]) {
+          if (!this.recordings[field])
+            this.error["recordings_" + field] = this.$t("common.required");
+        }
+        if (!this.recordings.secret_access_key && !this.keepsS3Secret)
+          this.error.recordings_secret_access_key = this.$t("common.required");
+      }
+      if (this.secretBackend.mode !== "off") {
+        if (!this.secretBackend.name)
+          this.error.secret_backend_name = this.$t("common.required");
+        if (this.secretBackend.scope === "group" && !this.secretBackend.group)
+          this.error.secret_backend_group = this.$t("common.required");
+      }
       const otherError = [
         "cluster",
         "vault_openbao",
         "vault_address",
         "vault_token",
+        "recordings_endpoint",
+        "recordings_region",
+        "recordings_bucket",
+        "recordings_prefix",
+        "recordings_access_key_id",
+        "recordings_secret_access_key",
+        "secret_backend_name",
+        "secret_backend_group",
       ].find((field) => this.error[field]);
       let firstInvalidEntry;
       for (const entry of [...this.ns8Entries, ...this.manualEntries]) {
@@ -828,6 +1229,7 @@ export default {
           : validationError.parameter;
         if (param.startsWith("database")) param = "database";
         if (param.startsWith("cluster")) param = "cluster";
+        if (param === "secret_backend_mode") param = "secret_backend";
         if (!(param in this.error)) param = "configureModule";
         // set i18n error message
         this.error[param] = this.$t("settings." + validationError.error);
@@ -884,6 +1286,16 @@ export default {
               peer: this.clusterMode === "join" ? this.clusterPeer : "",
             },
             ...this.vaultPayload(),
+            ...this.recordingsPayload(),
+            secret_backend: {
+              mode: this.secretBackend.mode,
+              name: this.secretBackend.name,
+              scope: this.secretBackend.scope,
+              group:
+                this.secretBackend.scope === "group"
+                  ? this.secretBackend.group
+                  : "",
+            },
           },
           extra: {
             title: this.$t("settings.instance_configuration", {
@@ -918,6 +1330,52 @@ export default {
         vault_address: this.vaultAddress,
         ...(this.vaultToken ? { vault_token: this.vaultToken } : {}),
       };
+    },
+    s3Fields() {
+      const { endpoint, region, bucket, prefix, path_style, access_key_id } =
+        this.recordings;
+      const fields = {
+        endpoint,
+        region,
+        bucket,
+        prefix,
+        path_style,
+        access_key_id,
+      };
+      if (this.recordings.secret_access_key)
+        fields.secret_access_key = this.recordings.secret_access_key;
+      return fields;
+    },
+    recordingsPayload() {
+      // A joining member uses the storage of its peer
+      if (this.recordingsInherited) return {};
+      if (this.recordings.storage !== "s3")
+        return { recordings: { storage: "local" } };
+      return { recordings: { storage: "s3", ...this.s3Fields() } };
+    },
+    testRecordingsStorage() {
+      this.storageTest = null;
+      this.loading.testStorage = true;
+      const data = this.s3Fields();
+      if (!data.secret_access_key) data.secret_access_key = "";
+      this.runAction(
+        "test-recordings-storage",
+        data,
+        (_taskContext, taskResult) => {
+          this.storageTest = taskResult.output;
+          this.loading.testStorage = false;
+        },
+        (validationErrors) => {
+          const first = Array.isArray(validationErrors)
+            ? validationErrors[0]
+            : null;
+          this.storageTest = {
+            ok: false,
+            error: first ? first.error : "s3_test_failed",
+          };
+          this.loading.testStorage = false;
+        }
+      );
     },
     async runAction(action, data, onCompleted, onFailed) {
       const eventId = this.getUuid();

@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-"""OpenBao maintenance: renew (or provision again) the token and mirror the
-local secrets. Run by warpgate-openbao.timer; never needed to start
-Warpgate, which reads only the local 0600 files."""
+"""OpenBao maintenance: renew (or provision again) the token, mirror the
+local secrets and, with a managed Warpgate secret backend, give Warpgate
+each new token before the old one reaches its maximum TTL. Run by
+warpgate-openbao.timer; never needed to start Warpgate, which reads only
+the local 0600 files."""
 
 import argparse
 import os
@@ -11,7 +13,9 @@ import sys
 import time
 
 import agent
+import warpgate_api
 import warpgate_cluster as wc
+import warpgate_secret_backend
 
 RENEW_BEFORE = 5 * 24 * 3600     # provision again 5 days before the max TTL
 MAX_TTL = int(os.environ.get("WARPGATE_VAULT_MAX_TTL") or 30 * 24 * 3600)
@@ -36,7 +40,18 @@ if args.action == "renew":
     except wc.OpenBaoError as ex:
         print(agent.SD_WARNING + f"OpenBao token renewal failed: {ex}", file=sys.stderr)
     old = time.time() - issued > MAX_TTL - RENEW_BEFORE
-    if vs["vault_mode"] == "provisioned" and (old or 0 < lease < 3600 or lease == 0):
+    group_lost = False
+    backend = warpgate_secret_backend.settings()
+    if backend["mode"] == "managed" and backend["scope"] == "group":
+        # Warpgate renews the group token too; renew it here as well, so a
+        # stopped Warpgate does not let it expire unnoticed
+        group = wc.read_group_tokens().get(backend["group"], {})
+        try:
+            wc.bao_request(env.get("VAULT_ADDR", ""), "auth/token/renew-self", "POST",
+                           token=group.get("token", ""), data={})
+        except wc.OpenBaoError:
+            group_lost = True
+    if vs["vault_mode"] == "provisioned" and (old or 0 < lease < 3600 or lease == 0 or group_lost):
         try:
             address, token, mount, path = wc.provision(vs["vault_openbao"])
         except wc.ClusterError as error:
@@ -46,6 +61,15 @@ if args.action == "renew":
         agent.mset_env({"WARPGATE_VAULT_MOUNT": mount, "WARPGATE_VAULT_PATH": path})
         os.environ.update({"WARPGATE_VAULT_MOUNT": mount, "WARPGATE_VAULT_PATH": path})
         print("OpenBao token provisioned again", file=sys.stderr)
+
+    cluster_mode = wc.settings()["cluster_mode"]
+    if warpgate_secret_backend.needs_admin_api(cluster_mode=cluster_mode):
+        try:
+            if warpgate_secret_backend.apply(warpgate_api, cluster_mode):
+                print("New OpenBao token given to the Warpgate secret backend", file=sys.stderr)
+        except (warpgate_api.ApiError, wc.ClusterError) as ex:
+            # Retried at the next run, well before the old token expires
+            print(agent.SD_WARNING + f"Cannot update the Warpgate secret backend: {ex}", file=sys.stderr)
 
 failed = wc.push_secrets()
 if failed:

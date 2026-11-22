@@ -1,0 +1,28 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "title": "Test S3 recordings storage",
+    "$id": "http://nethserver.org/json-schema/task/input/warpgate/test-recordings-storage",
+    "description": "Send a signed HEAD request to the bucket. An empty secret key uses the saved one",
+    "examples": [
+        {
+            "endpoint": "https://s3.example.org",
+            "region": "us-east-1",
+            "bucket": "warpgate-recordings",
+            "path_style": true,
+            "access_key_id": "AKIAEXAMPLE",
+            "secret_access_key": ""
+        }
+    ],
+    "type": "object",
+    "additionalProperties": false,
+    "required": ["region", "bucket", "access_key_id"],
+    "properties": {
+        "endpoint": {"type": "string", "maxLength": 300},
+        "region": {"type": "string", "maxLength": 63},
+        "bucket": {"type": "string", "maxLength": 63},
+        "prefix": {"type": "string", "maxLength": 512},
+        "path_style": {"type": "boolean"},
+        "access_key_id": {"type": "string", "maxLength": 128},
+        "secret_access_key": {"type": "string", "maxLength": 256, "writeOnly": true}
+    }
+}

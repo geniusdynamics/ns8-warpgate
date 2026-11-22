@@ -34,4 +34,23 @@ for evar in [
     if evar in original_environment:
         agent.set_env(evar, original_environment[evar])
 
+# Recordings storage and Warpgate secret backend settings (no secrets: the
+# S3 secret key comes back with state/s3.env)
+for evar in [
+        "WARPGATE_RECORDINGS_STORAGE",
+        "WARPGATE_S3_ENDPOINT",
+        "WARPGATE_S3_REGION",
+        "WARPGATE_S3_BUCKET",
+        "WARPGATE_S3_PREFIX",
+        "WARPGATE_S3_PATH_STYLE",
+        "WARPGATE_RECORDINGS_APPLIED",
+        "WARPGATE_RECORDINGS_DISK_PATH",
+        "WARPGATE_SECRET_BACKEND_MODE",
+        "WARPGATE_SECRET_BACKEND_NAME",
+        "WARPGATE_SECRET_BACKEND_SCOPE",
+        "WARPGATE_SECRET_BACKEND_GROUP",
+    ]:
+    if evar in original_environment:
+        agent.set_env(evar, original_environment[evar])
+
 agent.dump_env()

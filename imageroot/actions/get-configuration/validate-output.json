@@ -229,6 +229,99 @@
         },
         "openbao_client_status": {
             "type": "object"
+        },
+        "recordings": {
+            "type": "object",
+            "description": "Session recordings storage. The S3 secret key is never returned, only secret_access_key_set",
+            "properties": {
+                "storage": {
+                    "enum": [
+                        "local",
+                        "s3"
+                    ]
+                },
+                "endpoint": {
+                    "type": "string"
+                },
+                "region": {
+                    "type": "string"
+                },
+                "bucket": {
+                    "type": "string"
+                },
+                "prefix": {
+                    "type": "string"
+                },
+                "path_style": {
+                    "type": "boolean"
+                },
+                "access_key_id": {
+                    "type": "string"
+                },
+                "secret_access_key_set": {
+                    "type": "boolean"
+                },
+                "inherited_from": {
+                    "type": "string",
+                    "description": "Peer that the settings come from (joined members)"
+                },
+                "warnings": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            },
+            "not": {
+                "required": [
+                    "secret_access_key"
+                ]
+            }
+        },
+        "secret_backend": {
+            "type": "object",
+            "description": "Warpgate's own OpenBao secret backend. Never returns a token",
+            "properties": {
+                "mode": {
+                    "enum": [
+                        "off",
+                        "manual",
+                        "managed"
+                    ]
+                },
+                "name": {
+                    "type": "string"
+                },
+                "scope": {
+                    "enum": [
+                        "module",
+                        "group"
+                    ]
+                },
+                "group": {
+                    "type": "string"
+                },
+                "info": {
+                    "type": "object",
+                    "not": {
+                        "required": [
+                            "token"
+                        ]
+                    }
+                },
+                "warnings": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "groups": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            }
         }
     }
 }

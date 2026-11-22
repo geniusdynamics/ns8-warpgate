@@ -10,6 +10,21 @@
         "encryption_key": {"type": "string"},
         "encryption_key_old": {"type": "string"},
         "tls_certificate": {"type": "string"},
-        "tls_key": {"type": "string"}
+        "tls_key": {"type": "string"},
+        "recordings": {
+            "type": "object",
+            "description": "Recordings storage of the cluster; the S3 secret key travels like the other key material",
+            "required": ["storage"],
+            "properties": {
+                "storage": {"enum": ["local", "s3"]},
+                "endpoint": {"type": "string"},
+                "region": {"type": "string"},
+                "bucket": {"type": "string"},
+                "prefix": {"type": "string"},
+                "path_style": {"type": "boolean"},
+                "access_key_id": {"type": "string"},
+                "secret_access_key": {"type": "string"}
+            }
+        }
     }
 }

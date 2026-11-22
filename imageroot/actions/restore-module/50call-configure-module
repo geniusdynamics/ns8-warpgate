@@ -11,8 +11,24 @@ import sys
 import agent
 import agent.tasks
 
+import warpgate_recordings
+
 request = json.load(sys.stdin)
 renv = request["environment"]
+
+
+def recordings_request(env):
+    if env.get("WARPGATE_RECORDINGS_STORAGE") != "s3" or not warpgate_recordings.secret_key():
+        return {"storage": "local"}
+    return {
+        "storage": "s3",
+        "endpoint": env.get("WARPGATE_S3_ENDPOINT", ""),
+        "region": env.get("WARPGATE_S3_REGION", ""),
+        "bucket": env.get("WARPGATE_S3_BUCKET", ""),
+        "prefix": env.get("WARPGATE_S3_PREFIX", ""),
+        "path_style": env.get("WARPGATE_S3_PATH_STYLE", "1") != "0",
+    }
+
 
 # Pass ALL the settings restored by 06copyenv to configure-module
 response = agent.tasks.run(agent_id=os.environ["AGENT_ID"], action="configure-module", data={
@@ -25,5 +41,17 @@ response = agent.tasks.run(agent_id=os.environ["AGENT_ID"], action="configure-mo
                  "instance": renv.get("WARPGATE_DB_INSTANCE", "")},
     "cluster": {"mode": "standalone" if renv.get("WARPGATE_CLUSTER_MODE", "standalone") == "standalone"
                 else "create"},
+    # Older backups have none of these: local recordings, no secret backend.
+    # The S3 secret key is restored with state/s3.env.
+    "recordings": recordings_request(renv),
+    # A managed backend needs the OpenBao provisioning, which is not
+    # restored: keep the values to enter by hand instead
+    "secret_backend": {
+        "mode": "manual" if renv.get("WARPGATE_SECRET_BACKEND_MODE") == "managed"
+        else renv.get("WARPGATE_SECRET_BACKEND_MODE") or "off",
+        "name": renv.get("WARPGATE_SECRET_BACKEND_NAME") or "ns8-openbao",
+        "scope": renv.get("WARPGATE_SECRET_BACKEND_SCOPE") or "module",
+        "group": renv.get("WARPGATE_SECRET_BACKEND_GROUP", ""),
+    },
 })
 agent.assert_exp(response["exit_code"] == 0, "The configure-module subtask failed!")
