@@ -14,7 +14,7 @@ import agent
 import warpgate_cluster as wc
 
 RENEW_BEFORE = 5 * 24 * 3600     # provision again 5 days before the max TTL
-MAX_TTL = 30 * 24 * 3600
+MAX_TTL = int(os.environ.get("WARPGATE_VAULT_MAX_TTL") or 30 * 24 * 3600)
 
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument("action", choices=("renew", "push", "status"))
